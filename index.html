@@ -656,6 +656,67 @@
         return Math.floor(low);
     }
 
+// --- DRAG AND DROP STATE & LOGIC ---
+    let draggedSpaceId = null;
+
+    if (!document.getElementById('drag-drop-styles')) {
+        const style = document.createElement('style');
+        style.id = 'drag-drop-styles';
+        style.innerHTML = `
+            .space-card { cursor: grab; transition: opacity 0.2s; }
+            .space-card:active { cursor: grabbing; }
+            .space-card.dragging { opacity: 0.4; }
+            .space-card.drag-over { border: 2px dashed #a1a1aa !important; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    window.dragStart = function(event, id) {
+        draggedSpaceId = id;
+        event.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => event.target.classList.add('dragging'), 0);
+    };
+
+    window.dragOver = function(event) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+    };
+
+    window.dragEnter = function(event) {
+        event.preventDefault();
+        const card = event.target.closest('.space-card');
+        if (card) card.classList.add('drag-over');
+    };
+
+    window.dragLeave = function(event) {
+        const card = event.target.closest('.space-card');
+        if (card) card.classList.remove('drag-over');
+    };
+
+    window.drop = function(event, targetId) {
+        event.preventDefault();
+        const card = event.target.closest('.space-card');
+        if (card) card.classList.remove('drag-over', 'dragging');
+
+        if (draggedSpaceId && draggedSpaceId !== targetId) {
+            const draggedIndex = spaces.findIndex(s => s.id === draggedSpaceId);
+            const targetIndex = spaces.findIndex(s => s.id === targetId);
+            if (draggedIndex > -1 && targetIndex > -1) {
+                const [movedSpace] = spaces.splice(draggedIndex, 1);
+                spaces.splice(targetIndex, 0, movedSpace);
+                buildSpacesDOM();
+                window.runEngine();
+            }
+        }
+        draggedSpaceId = null;
+    };
+    document.addEventListener('dragend', (e) => {
+        if(e.target.classList && e.target.classList.contains('space-card')) {
+            e.target.classList.remove('dragging');
+        }
+    });
+    // ------------------------------------
+    
     function createSpaceNode(s, idx) {
         const sortedKeys = Object.keys(occupancyData).sort((a, b) => occupancyData[a].label.localeCompare(occupancyData[b].label));
         let options = sortedKeys.map(k => 
@@ -669,14 +730,22 @@
         
         let labelText = logic.calcType === 'area' ? 'Input Value (SqFt)' : 
                         logic.calcType === 'seats' ? 'Input Value (Seats)' : 'Input Value (Units/Rooms)';
-
         let factorDisabled = logic.calcType !== 'area' ? 'disabled title="N/A for this type"' : '';
         let factorValue = s.factor || logic.defaultFactor || '';
 
         const card = document.createElement('div');
         card.id = `card-${s.id}`;
         card.className = 'space-card';
-        card.style.borderLeft = `5px solid ${borderColors[idx % borderColors.length]}`;
+        // Border color is now handled dynamically by runEngine based on Occupancy Group
+        card.style.borderLeft = `5px solid #ccc`; 
+        
+        // Add native HTML5 drag-and-drop attributes
+        card.setAttribute('draggable', 'true');
+        card.setAttribute('ondragstart', `dragStart(event, '${s.id}')`);
+        card.setAttribute('ondragover', `dragOver(event)`);
+        card.setAttribute('ondrop', `drop(event, '${s.id}')`);
+        card.setAttribute('ondragenter', `dragEnter(event)`);
+        card.setAttribute('ondragleave', `dragLeave(event)`);
         
         card.innerHTML = `
             <div class="space-header">
@@ -715,7 +784,6 @@
         `;
         return card;
     }
-
     function buildSpacesDOM() {
         const container = document.getElementById('spaces-container');
         container.innerHTML = '';
@@ -807,16 +875,49 @@
         const maxLimit = findTheoreticalMax(avail);
         const currentSum = spaces.reduce((sum, s) => sum + s.val, 0);
 
-        // 1. Dashboard Updates
+        // 1. Group Spaces by Occupancy Type & Assign Unified Colors
+        let groupCounts = {};
+        spaces.forEach(s => {
+            const logic = occupancyData[s.type];
+            let baseGroup = s.type;
+            if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
+
+            let currentFactor = s.factor || logic.defaultFactor || 1;
+            let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
+
+            if (!groupCounts[baseGroup]) {
+                groupCounts[baseGroup] = {
+                    totalOcc: 0, logic: logic, calcType: logic.calcType, names: [], occMathStrings: [], spaces: [], baseSum: 0
+                };
+            }
+            groupCounts[baseGroup].totalOcc += totalOcc;
+            groupCounts[baseGroup].baseSum += s.val;
+            groupCounts[baseGroup].names.push(s.name);
+            groupCounts[baseGroup].spaces.push(s);
+
+            if (logic.calcType === 'area') {
+                groupCounts[baseGroup].occMathStrings.push(`${s.val} sqft / ${currentFactor} = ${totalOcc}`);
+            } else if (logic.calcType === 'seats') {
+                groupCounts[baseGroup].occMathStrings.push(`${s.val} seats = ${totalOcc}`);
+            }
+        });
+
+        // Sort keys alphabetically and assign color palette per Occupancy Group
+        const sortedGroups = Object.keys(groupCounts).sort();
+        sortedGroups.forEach((key, index) => {
+            groupCounts[key].color = borderColors[index % borderColors.length];
+        });
+
+        // 2. Dashboard Breakdown Updates (Grouped by Occupancy Type)
         const proposedEl = document.getElementById('res-proposed');
         const maxEl = document.getElementById('res-max');
         const warnEl = document.getElementById('bottleneck-warning');
         const proposedBreakdownList = document.getElementById('proposed-breakdown-list');
         const maxBreakdownList = document.getElementById('max-breakdown-list');
-        
+
         if (proposedEl) proposedEl.innerText = currentSum.toLocaleString();
         if (maxEl) maxEl.innerText = maxLimit.toLocaleString();
-        
+
         if(isOver && warnEl) {
             warnEl.style.display = 'block';
             document.getElementById('bottleneck-list').innerText = bottlenecks.join(', ');
@@ -829,14 +930,13 @@
         if (proposedBreakdownList) {
             proposedBreakdownList.innerHTML = '';
             if (currentSum > 0) {
-                spaces.forEach((s, idx) => {
-                    const color = borderColors[idx % borderColors.length];
-                    const logic = occupancyData[s.type];
-                    let unit = logic.calcType === 'area' ? 'SqFt' : (logic.calcType === 'seats' ? 'Seats' : 'Units');
+                sortedGroups.forEach(key => {
+                    const group = groupCounts[key];
+                    const unit = group.calcType === 'area' ? 'SqFt' : (group.calcType === 'seats' ? 'Seats' : 'Units');
                     proposedBreakdownList.innerHTML += `
                         <div class="dashboard-breakdown-item">
-                            <span><span class="legend-color" style="background:${color}"></span>${s.name}</span>
-                            <span><strong>${s.val.toLocaleString()}</strong> ${unit}</span>
+                            <span><span class="legend-color" style="background:${group.color}"></span>Group ${key} <span style="font-size:0.85em; color:var(--text-muted);">(${group.names.join(', ')})</span></span>
+                            <span><strong>${group.baseSum.toLocaleString()}</strong> ${unit}</span>
                         </div>
                     `;
                 });
@@ -848,16 +948,16 @@
         if (maxBreakdownList) {
             maxBreakdownList.innerHTML = '';
             if (currentSum > 0) {
-                spaces.forEach((s, idx) => {
-                    const proportion = s.val / currentSum;
-                    const spaceMax = Math.floor(maxLimit * proportion);
-                    const color = borderColors[idx % borderColors.length];
-                    const logic = occupancyData[s.type];
-                    let unit = logic.calcType === 'area' ? 'SqFt' : (logic.calcType === 'seats' ? 'Seats' : 'Units');
+                sortedGroups.forEach(key => {
+                    const group = groupCounts[key];
+                    const unit = group.calcType === 'area' ? 'SqFt' : (group.calcType === 'seats' ? 'Seats' : 'Units');
+                    const proportion = group.baseSum / currentSum;
+                    const groupMax = Math.floor(maxLimit * proportion);
+
                     maxBreakdownList.innerHTML += `
                         <div class="dashboard-breakdown-item">
-                            <span><span class="legend-color" style="background:${color}"></span>${s.name}</span>
-                            <span><strong>${spaceMax.toLocaleString()}</strong> ${unit}</span>
+                            <span><span class="legend-color" style="background:${group.color}"></span>Group ${key} <span style="font-size:0.85em; color:var(--text-muted);">(${group.names.join(', ')})</span></span>
+                            <span><strong>${groupMax.toLocaleString()}</strong> ${unit}</span>
                         </div>
                     `;
                 });
@@ -866,14 +966,18 @@
             }
         }
 
-        // 2. Dynamic Space Updates & Global Math Builder
+        // 3. Dynamic Space Cards
         const sliderMax = maxLimit > 0 ? Math.floor(maxLimit * 1.2) : 10000;
-        let groupCounts = {};
-        
+
         spaces.forEach(s => {
             const card = document.getElementById(`card-${s.id}`);
             if (!card) return;
-            
+
+            // Paint the card's visual border using its global group color
+            let baseGroup = s.type;
+            if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
+            card.style.borderLeft = `5px solid ${groupCounts[baseGroup].color}`;
+
             const slider = document.getElementById(`slider-${s.id}`);
             if (slider) slider.max = sliderMax > s.val ? sliderMax : (s.val * 1.5);
 
@@ -885,44 +989,30 @@
             const isErrorCard = isOver && s.id === lastEditedId;
             if (isErrorCard) card.classList.add('error-state');
             else card.classList.remove('error-state');
-            
-            // Pool calculations for math breakdown UI
+
             const logic = occupancyData[s.type];
             let currentFactor = s.factor || logic.defaultFactor || 1;
             let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
-            
+
             const occEl = document.getElementById(`occ-${s.id}`);
             if(occEl) occEl.innerText = totalOcc;
-
-            let baseGroup = s.type;
-            if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
-
-            if (!groupCounts[baseGroup]) {
-                groupCounts[baseGroup] = {
-                    totalOcc: 0, logic: logic, calcType: logic.calcType, names: [], occMathStrings: [],
-                    colorIndex: Object.keys(groupCounts).length % borderColors.length
-                };
-            }
-            groupCounts[baseGroup].totalOcc += totalOcc;
-            groupCounts[baseGroup].names.push(s.name);
-
-            if (logic.calcType === 'area') {
-                groupCounts[baseGroup].occMathStrings.push(`${s.val} sqft / ${currentFactor} = ${totalOcc}`);
-            } else if (logic.calcType === 'seats') {
-                groupCounts[baseGroup].occMathStrings.push(`${s.val} seats = ${totalOcc}`);
-            }
         });
 
-        // Generate Unified Global Math Breakdown
-        let globalMathHtml = `<h3 style="margin-top:0; border-bottom:1px solid rgba(0,0,0,0.1); padding-bottom:8px;">Proposed Target: Global Math Breakdown</h3>`;
+        // Generate Unified Collapsible Math Breakdown
+        let globalMathHtml = `
+            <details class="math-breakdown" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 1px 3px rgba(0,0,0,0.05);" open>
+                <summary style="font-weight: 600; font-size: 1.05em; padding-bottom: 5px; cursor: pointer; color: var(--text-main); margin-bottom: 5px;">
+                    View Global Math Breakdown
+                </summary>
+                <div style="font-size: 0.95em; padding-top: 10px; border-top: 1px solid rgba(0,0,0,0.1);">
+        `;
 
-        for (let key in groupCounts) {
+        sortedGroups.forEach(key => {
             let group = groupCounts[key];
-            const color = borderColors[group.colorIndex];
-            const badgeStyle = `background-color: ${color}; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; white-space: nowrap; font-family: monospace; border: 1px solid rgba(0,0,0,0.1);`;
+            const badgeStyle = `background-color: ${group.color}; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; white-space: nowrap; font-family: monospace; border: 1px solid rgba(0,0,0,0.1);`;
 
             let gMath = `<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed rgba(0,0,0,0.1);">
-                            <p style="margin-bottom: 4px;"><strong>Group ${key} (${group.names.join(', ')})</strong></p>`;
+                            <p style="margin-bottom: 4px;"><strong>Group ${key} <span style="font-size:0.9em; font-weight:normal; color:var(--text-muted);">(${group.names.join(', ')})</span></strong></p>`;
 
             if (group.calcType === 'units') {
                  gMath += `<p>Base Units: ${group.totalOcc}</p><p><em>Units map 1:1 and are excluded from fractional capacity bottlenecking tables.</em></p>`;
@@ -930,7 +1020,7 @@
                  let mOcc = Math.ceil(group.totalOcc / 2);
                  let fOcc = Math.ceil(group.totalOcc / 2);
 
-                 gMath += `<p>Aggregate Base Load: ${group.occMathStrings.join(' + ')} = <strong>${group.totalOcc} Total Occupants</strong></p>
+                 gMath += `<p style="margin-bottom: 4px;">Aggregate Base Load: ${group.occMathStrings.join(' + ')} = <strong>${group.totalOcc} Total Occupants</strong></p>
                            <p style="margin-bottom: 8px;">50/50 Split ➔ ${mOcc} Male & ${fOcc} Female</p>`;
 
                  let mathStrings = [
@@ -939,7 +1029,6 @@
                  ];
 
                  let groupFracText = mathStrings.join('');
-                 // Regex intercepts trailing decimals inside <strong> and replaces with color pill badge
                  groupFracText = groupFracText.replace(/<strong>(\d+\.\d{2})<\/strong>/g, `<span style="${badgeStyle}">$1</span>`);
                  groupFracText = groupFracText.replace(/: 0\.00<\/p>/g, `: <span style="${badgeStyle}">0.00</span></p>`);
 
@@ -947,24 +1036,34 @@
             }
             gMath += `</div>`;
             globalMathHtml += gMath;
-        }
+        });
 
-        // Dynamically inject the Math breakdown wrapper if missing
+        globalMathHtml += `</div></details>`;
+
+        // Autolocate and inject safely beneath the "Add Space" button
         let globalMathContainer = document.getElementById('global-math-breakdown');
         if (!globalMathContainer) {
             globalMathContainer = document.createElement('div');
             globalMathContainer.id = 'global-math-breakdown';
-            globalMathContainer.style.cssText = 'margin-top: 30px; padding: 20px; background: #fff; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 1px 3px rgba(0,0,0,0.05);';
-            const spacesContainer = document.getElementById('spaces-container');
-            if (spacesContainer) spacesContainer.after(globalMathContainer);
+            globalMathContainer.style.cssText = 'margin-top: 25px; margin-bottom: 30px;';
+
+            const buttons = Array.from(document.querySelectorAll('button'));
+            const addBtn = buttons.find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes('addSpace'));
+            
+            if (addBtn && addBtn.parentElement) {
+                addBtn.parentElement.after(globalMathContainer);
+            } else {
+                const spacesContainer = document.getElementById('spaces-container');
+                if (spacesContainer) spacesContainer.after(globalMathContainer);
+            }
         }
         if(globalMathContainer) globalMathContainer.innerHTML = globalMathHtml;
 
-        // 3. SVG Pie Chart
-        drawSvgPieChart(currentSum);
+        // 4. SVG Pie Chart (Passing the globally sorted variables)
+        drawSvgPieChart(currentSum, groupCounts, sortedGroups);
     };
 
-    function drawSvgPieChart(total) {
+    function drawSvgPieChart(total, groupCounts, sortedGroups) {
         const pieContainer = document.getElementById('pie');
         const legend = document.getElementById('legend');
         if(!pieContainer || !legend) return;
@@ -972,7 +1071,7 @@
         legend.innerHTML = '';
         pieContainer.innerHTML = '';
         
-        if (total === 0) {
+        if (total === 0 || !sortedGroups || sortedGroups.length === 0) {
             pieContainer.innerHTML = '<svg class="pie-svg" viewBox="0 0 100 100"></svg>';
             return;
         }
@@ -980,9 +1079,10 @@
         let svgContent = '';
         let startAngle = 0;
 
-        spaces.forEach((s, idx) => {
-            const color = borderColors[idx % borderColors.length];
-            const percent = (s.val / total);
+        sortedGroups.forEach(key => {
+            const group = groupCounts[key];
+            const color = group.color;
+            const percent = (group.baseSum / total);
             const sliceAngle = percent * 2 * Math.PI;
 
             if (percent > 0) {
@@ -990,12 +1090,10 @@
                     svgContent += `<circle cx="50" cy="50" r="50" fill="${color}" />`;
                 } else {
                     const endAngle = startAngle + sliceAngle;
-
                     const startX = 50 + 50 * Math.sin(startAngle);
                     const startY = 50 - 50 * Math.cos(startAngle);
                     const endX = 50 + 50 * Math.sin(endAngle);
                     const endY = 50 - 50 * Math.cos(endAngle);
-
                     const largeArcFlag = percent > 0.5 ? 1 : 0;
 
                     const pathData = [
@@ -1012,7 +1110,7 @@
 
             legend.innerHTML += `
                 <div class="legend-item">
-                    <div><span class="legend-color" style="background:${color}"></span>${s.name}</div>
+                    <div><span class="legend-color" style="background:${color}"></span>Group ${key}</div>
                     <div style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 600;">${(percent*100).toFixed(1)}%</div>
                 </div>
             `;
