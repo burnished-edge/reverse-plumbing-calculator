@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Plumbing Feasibility Calculator</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f5;
+            --card-bg: #ffffff;
+            --text-main: #18181b;
+            --text-muted: #52525b;
+            --border-color: #e4e4e7;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --danger: #ef4444;
+            --danger-bg: #fef2f2;
+            --success: #10b981;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.4;
+            margin: 0;
+            padding: 1rem;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background-color: var(--card-bg);
+            max-width: 900px;
+            width: 100%;
+            padding: 1.5rem;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header-actions {
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .header-titles h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 0.2rem;
+         }
+        .header-titles .subtitle {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        .util-buttons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+        
+        /* Info / How it Works Section */
+        .info-section {
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+        }
+        .info-section summary {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            font-weight: 600;
+            outline: none;
+            user-select: none;
+            color: var(--accent);
+        }
+        .info-section .info-content {
+            padding: 0 1rem 1rem 1rem;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .info-section .info-content p {
+            margin: 0 0 0.75rem 0;
+        }
+        .info-section .info-content p:last-child {
+            margin: 0;
+        }
+
+        /* Global Fixtures Top Panel */
+        .fixtures-panel {
+            background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem;
+        }
+        .fixtures-header { font-weight: 600; font-size: 1rem; margin-bottom: 0.75rem; color: var(--text-main); }
+        .fixtures-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
+        .fixture-input { flex: 1; min-width: 100px; display: flex; flex-direction: column; }
+        .fixture-input label { font-size: 0.75rem; font-weight: 500; color: var(--text-main); margin-bottom: 0.25rem; }
+        .fixture-input input { padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; font-size: 1rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; outline: none; transition: border-color 0.2s; }
+        .fixture-input input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
+
+        /* Space Cards */
+        .space-card { border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; background-color: #fafafa; transition: all 0.2s ease; }
+        .space-card.error-state { border-color: var(--danger); background-color: var(--danger-bg); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2); }
+        .space-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+        .space-header-left { display: flex; align-items: center; flex: 1; gap: 0.4rem; }
+        .space-title-input { font-size: 1rem; font-weight: 600; color: var(--text-main); border: 1px solid transparent; background: transparent; padding: 0.2rem 0.4rem; border-radius: 3px; width: 100%; max-width: 50%; min-width: 120px; transition: all 0.2s; font-family: inherit; }
+        .space-title-input:focus { border-color: var(--accent); background: white; outline: none; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
+        .space-card.error-state .space-title-input { color: var(--danger); }
+        
+        .badge { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 999px; background-color: #e0e7ff; color: #3730a3; font-weight: 500; white-space: nowrap; }
+        .badge.seats { background-color: #dbeafe; color: #1e40af; }
+        .badge.units { background-color: #d1fae5; color: #065f46; }
+
+        .controls-grid { display: grid; grid-template-columns: minmax(160px, 2fr) 60px 1.5fr minmax(120px, 1.2fr) 65px; gap: 0.75rem; align-items: end; margin-bottom: 0.75rem;}
+        .input-group { display: flex; flex-direction: column; min-width: 0; }
+        .input-group label { font-size: 0.75rem; font-weight: 500; margin-bottom: 0.25rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .input-group select, .input-group input[type="number"] { padding: 0.35rem 0.5rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 4px; outline: none; transition: border-color 0.2s; font-family: inherit; width: 100%; box-sizing: border-box; }
+        .input-group select { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+        .input-group input[type="number"] { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9rem; }
+        .input-group input:disabled { background-color: #e4e4e7; cursor: not-allowed; opacity: 0.7; }
+        .input-group select:focus, .input-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
+        .slider-group { display: flex; flex-direction: column; justify-content: center; padding-bottom: 0.65rem; min-width: 0; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+
+        .error-message { color: var(--danger); font-size: 0.75rem; font-weight: 600; margin-top: 0.5rem; display: none; }
+        .space-card.error-state .error-message { display: block; }
+        .space-card.error-state .input-group input[type="number"] { border-color: var(--danger); color: var(--danger); font-weight: bold; background: white;}
+
+        /* Math Breakdown formatting */
+        .math-breakdown { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border-color); font-size: 0.75rem; color: var(--text-muted); }
+        .math-breakdown summary { cursor: pointer; font-weight: 500; color: var(--accent); outline: none; user-select: none; }
+        .math-breakdown div { margin-top: 0.5rem; line-height: 1.4; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; background: #f1f5f9; padding: 0.75rem; border-radius: 4px; }
+        .math-breakdown div p { margin: 0 0 0.4rem 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.2rem; }
+        .math-breakdown div p:last-child { margin: 0; border-bottom: none; padding-bottom: 0; }
+        .math-breakdown .highlight-math { color: var(--text-main); font-weight: 600; }
+
+        /* Buttons */
+        .btn { padding: 0.4rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: all 0.2s; border: none; background: var(--accent); color: white; }
+        .btn:hover { background: var(--accent-hover); }
+        .btn-outline { background-color: transparent; color: var(--accent); border: 1px solid var(--accent); }
+        .btn-outline:hover { background-color: #eff6ff; }
+        .btn-danger { background-color: #fee2e2; color: #b91c1c; padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+        .btn-danger:hover { background-color: #fca5a5; }
+        .add-btn-container { text-align: center; margin-top: 1rem; }
+        .btn-add { width: 100%; border: 2px dashed var(--accent); background: #eff6ff; color: var(--accent); font-weight: 600; padding: 0.75rem; }
+        .print-btn-bottom { display: block; width: 100%; margin-top: 1rem; padding: 0.75rem; background-color: #1e293b; color: white; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; transition: opacity 0.2s; }
+        .print-btn-bottom:hover { opacity: 0.9; }
+
+        /* Results Dashboard */
+        .results-panel { background-color: #f8fafc; border: 2px solid var(--border-color); border-radius: 6px; padding: 1.5rem; margin-bottom: 1.5rem; display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; color: var(--text-main); }
+        .results-data { flex: 2; min-width: 250px; }
+        .results-header { font-weight: 600; font-size: 1.1rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 0.75rem; font-size: 0.95rem; align-items: center;}
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+        .stat-val { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 1.25rem; font-weight: 600; color: var(--text-main);}
+        .stat-highlight { color: var(--accent); font-size: 1.5rem; }
+        
+        /* Dashboard Breakdown */
+        .dashboard-breakdown { font-size: 0.8rem; margin-bottom: 0.75rem; padding-top: 0.5rem; margin-top: 0.25rem; }
+        .dashboard-breakdown.top-border { border-top: 1px dashed var(--border-color); }
+        .dashboard-breakdown summary { cursor: pointer; color: var(--accent); font-weight: 500; outline: none; user-select: none; }
+        .dashboard-breakdown .breakdown-content { margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; }
+        .dashboard-breakdown-item { display: flex; justify-content: space-between; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--text-main); background: #e2e8f0; padding: 0.4rem 0.5rem; border-radius: 4px; align-items: center; }
+
+        .chart-container { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 200px; }
+        .pie-wrapper { width: 160px; height: 160px; margin-bottom: 1rem; }
+        .pie-svg { width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid var(--card-bg); background: #e2e8f0; display: block; }
+        
+        .legend { width: 100%; font-size: 0.75rem; }
+        .legend-item { display: flex; justify-content: space-between; margin-bottom: 0.25rem; align-items: center;}
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.1); margin-right: 0.5rem; display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+        @media print {
+            @page { size: letter portrait; margin: 0.4in; }
+            body { background-color: #ffffff; padding: 0; font-size: 9pt; }
+            .container { box-shadow: none; padding: 0; max-width: 100%; border: none; }
+            .util-buttons, .add-btn-container, .btn-danger, .slider-group, .print-btn-bottom, .info-section { display: none !important; }
+            .space-card { background-color: transparent; border: 1px solid var(--border-color); page-break-inside: avoid; margin-bottom: 0.15in; padding: 0.15in; }
+            .results-panel { background-color: transparent; border: 2px solid var(--border-color); page-break-inside: avoid; padding: 0.15in; margin-top: 0; }
+            input[type="number"], select, .space-title-input { border: none !important; background: transparent !important; padding: 0 !important; margin: 0 !important; appearance: none; -webkit-appearance: none; box-shadow: none !important; color: var(--text-main); font-size: 9pt; }
+            .space-title-input { font-size: 10.5pt; font-weight: bold; }
+            
+            /* Print grid adjustments for 4 visible columns (slider hidden) */
+            .controls-grid { grid-template-columns: minmax(120px, 2fr) 60px minmax(100px, 1.5fr) 60px; gap: 1rem; }
+            
+            details summary { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
+            .math-breakdown { margin-top: 0.25rem !important; padding-top: 0.25rem !important; border-top: 1px dashed var(--border-color) !important; margin-bottom: 0 !important; padding-bottom: 0 !important; }
+            details > div { display: block !important; border-top: none; padding: 0 !important; margin-top: 0 !important; margin-bottom: 0 !important; background: transparent !important; font-size: 8pt; line-height: 1.25; }
+            
+            .dashboard-breakdown { margin-top: 0.15in !important; padding-top: 0.15in !important; }
+            .dashboard-breakdown-item { background: transparent !important; border-bottom: 1px solid #e2e8f0; border-radius: 0; padding: 0.2rem 0 !important; }
+            .dashboard-breakdown-item:last-child { border-bottom: none; }
+
+            .math-breakdown div p { margin: 0 0 0.15rem 0 !important; padding-bottom: 0.15rem !important; border-bottom: 1px solid #f1f5f9 !important; }
+            .math-breakdown div p:last-of-type { margin: 0 !important; padding-bottom: 0 !important; border-bottom: none !important; }
+            .stat-val { font-size: 12pt; }
+            .stat-highlight { font-size: 14pt; }
+            .pie-svg { box-shadow: none; border: 1px solid #cbd5e1; }
+        }
+
+        @media (max-width: 600px) {
+            body { padding: 0.5rem; }
+            .container { padding: 1rem; }
+            .controls-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+            .results-panel { flex-direction: column; }
+            .space-title-input { max-width: 100%; }
+            .space-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-actions">
+        <div class="header-titles">
+            <h1>Reverse Plumbing Feasibility Calculator</h1>
+            <div class="subtitle">Fractional Method (2025 LAPC / 2025 CPC Tables 422.1 & 4-1)</div>
+            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem; font-style: italic;">Last Updated: May 1, 2026 at 8:50 AM PDT</div>
+        </div>
+        <div class="util-buttons">
+            <button class="btn btn-outline" onclick="window.printReport()">Print / Save PDF</button>
+            <button class="btn btn-outline" onclick="window.exportData()">Export JSON</button>
+            <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">Import JSON</button>
+            <input type="file" id="import-file" accept=".json" style="display: none;" onchange="window.importData(event)">
+        </div>
+    </div>
+
+    <details class="info-section">
+        <summary>ℹ️ How this works (Disclaimer)</summary>
+        <div class="info-content">
+            <p>This tool determines the theoretical maximum capacity of a building by treating existing plumbing fixtures as the primary constraint. Based on the inputted square footage and occupancy types, the calculator derives an occupant load and applies the fractional method to determine required fixture counts. As you adjust the distribution of area or units using the sliders, the dashboard provides a real-time comparison between what is currently provided and what the code requires. When a deficiency is flagged, the user must redistribute or reduce the values until the warnings resolve, signaling that the proposed program is supported by the existing infrastructure.</p>
+            <p>The <strong>Math Breakdown</strong> for each section provides an audit trail for these results. It exposes the step-by-step logic used to reach each fractional value—including the raw occupant load derivation and the specific table-based formulas applied—ensuring that the values shown are directly traceable to standard code requirements.</p>
+            <p style="color: var(--danger);"><strong>Disclaimer:</strong> These values represent theoretical maximums based on reverse fractional capacity formulas. They should <strong>always</strong> be verified against normal, forward-calculating plumbing fixture requirements and confirmed by a licensed design professional in your specific jurisdiction.</p>
+        </div>
+    </details>
+
+    <div class="fixtures-panel">
+        <div class="fixtures-header">Total Available / Existing Fixtures</div>
+        <div class="fixtures-grid">
+            <div class="fixture-input"><label>Male WC</label><input type="number" id="g-mWC" value="2" min="0" oninput="window.runEngine()"></div>
+            <div class="fixture-input"><label>Female WC</label><input type="number" id="g-fWC" value="5" min="0" oninput="window.runEngine()"></div>
+            <div class="fixture-input"><label>Urinals</label><input type="number" id="g-mUr" value="1" min="0" oninput="window.runEngine()"></div>
+            <div class="fixture-input"><label>Male Lavs</label><input type="number" id="g-mLav" value="1" min="0" oninput="window.runEngine()"></div>
+            <div class="fixture-input"><label>Female Lavs</label><input type="number" id="g-fLav" value="2" min="0" oninput="window.runEngine()"></div>
+            <div class="fixture-input"><label>Drinking Fount.</label><input type="number" id="g-df" value="1" min="0" oninput="window.runEngine()"></div>
+        </div>
+    </div>
+
+    <div class="results-panel">
+        <div class="results-data">
+            <div class="results-header">Capacity Dashboard</div>
+            
+            <div class="stat-row" style="margin-bottom: 0.25rem;">
+                <span class="stat-label">Proposed Sum (SqFt/Units/Seats):</span>
+                <span class="stat-val" id="res-proposed">0</span>
+            </div>
+            
+            <details class="dashboard-breakdown" open>
+                <summary>View Proposed Breakdown</summary>
+                <div class="breakdown-content" id="proposed-breakdown-list"></div>
+            </details>
+
+            <div class="stat-row" style="margin-top: 1rem; margin-bottom: 0.25rem;">
+                <span class="stat-label" title="Based on current ratio of spaces" style="border-bottom: 1px dotted var(--text-muted); cursor:help;">Theoretical Max for this Mix:</span>
+                <span class="stat-val stat-highlight" id="res-max">0</span>
+            </div>
+            
+            <details class="dashboard-breakdown top-border" open>
+                <summary>View Distribution Breakdown</summary>
+                <div class="breakdown-content" id="max-breakdown-list"></div>
+            </details>
+
+            <hr style="border: 0; border-top: 1px dashed var(--border-color); margin: 1rem 0;">
+            <div id="bottleneck-warning" style="color: var(--danger); font-size: 0.85rem; font-weight: 600; display: none; padding: 0.5rem; background: var(--danger-bg); border-radius: 4px; border: 1px solid #fca5a5;">
+                ⚠️ Capacity Exceeded. Deficiency: <span id="bottleneck-list"></span>
+            </div>
+        </div>
+        <div class="chart-container">
+            <div class="pie-wrapper" id="pie"></div>
+            <div class="legend" id="legend"></div>
+        </div>
+    </div>
+
+    <div id="spaces-container"></div>
+    <div class="add-btn-container">
+        <button class="btn btn-add" onclick="window.addSpace()">+ Add Occupied Space</button>
+    </div>
+    
+    <button class="print-btn-bottom" onclick="window.printReport()">🖨️ Print / Save PDF Report</button>
+</div>
+
+<script>
+    // Robust ID generator to prevent integer parsing errors
+    function generateId() {
+        return 'space_' + Date.now().toString(36) + '_' + Math.floor(Math.random() * 1000);
+    }
+
+    // FRACTIONAL MATH ENGINE & STRING BUILDERS
+    function fracStep(val, limits, counts, overDivisor) {
+        if (val === 0) return 0;
+        let baseVal = 0, baseCount = 0;
+        for (let i = 0; i < limits.length; i++) {
+            if (val <= limits[i]) {
+                const addedCounts = counts[i] - baseCount;
+                const range = limits[i] - baseVal;
+                return baseCount + (val - baseVal) * (addedCounts / range);
+            }
+            baseVal = limits[i]; baseCount = counts[i];
+        }
+        return baseCount + (val - baseVal) / overDivisor;
+    }
+    
+    function getFracMath(val, limits, counts, overDivisor, fixtureName) {
+        if (val === 0) return `<p>${fixtureName}: 0.00</p>`;
+        let baseVal = 0, baseCount = 0;
+        for (let i = 0; i < limits.length; i++) {
+            if (val <= limits[i]) {
+                const addedCounts = counts[i] - baseCount;
+                const range = limits[i] - baseVal;
+                const remainder = val - baseVal;
+                const fraction = remainder * (addedCounts / range);
+                const total = baseCount + fraction;
+                if (baseCount === 0) {
+                    return `<p>${fixtureName}: ${val} occupants × ${addedCounts}/${range} = <strong>${total.toFixed(2)}</strong></p>`;
+                } else {
+                    return `<p>${fixtureName}: ${baseVal} occ = ${baseCount} fixture(s) w/ ${val} - ${baseVal} = ${remainder} Remainder, ${remainder} × ${addedCounts}/(${limits[i]}-${baseVal}) = ${fraction.toFixed(2)}, Total = <strong>${total.toFixed(2)}</strong></p>`;
+                }
+            }
+            baseVal = limits[i]; baseCount = counts[i];
+        }
+        const remainder = val - baseVal;
+        const fraction = remainder / overDivisor;
+        const total = baseCount + fraction;
+        return `<p>${fixtureName}: ${baseVal} occ = ${baseCount} fixture(s) w/ ${val} - ${baseVal} = ${remainder} Remainder, ${remainder} × 1/${overDivisor} = ${fraction.toFixed(2)}, Total = <strong>${total.toFixed(2)}</strong></p>`;
+    }
+
+    function linear(val, divisor) { return val / divisor; }
+    function getLinearMath(val, divisor, fixtureName) {
+        if (val === 0) return `<p>${fixtureName}: 0.00</p>`;
+        return `<p>${fixtureName}: ${val} occupants × 1/${divisor} = <strong>${(val/divisor).toFixed(2)}</strong></p>`;
+    }
+
+    // FULL OCCUPANCY DATA MAPPING
+    const occupancyData = {
+        'A-1': {
+            label: 'A-1 Assembly (fixed seating)', calcType: 'seats', defaultFactor: null,
+            mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
+            fWC: (f) => fracStep(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125), mathFWC: (f) => getFracMath(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125, 'WC (F)'),
+            mUr: (m) => fracStep(m, [200,300,400,600], [1,2,3,4], 300), mathMUr: (m) => getFracMath(m, [200,300,400,600], [1,2,3,4], 300, 'Urinals'),
+            mLav: (m) => fracStep(m, [200,400,600,750], [1,2,3,4], 250), mathMLav: (m) => getFracMath(m, [200,400,600,750], [1,2,3,4], 250, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [100,200,300,500,750], [1,2,4,5,6], 200), mathFLav: (f) => getFracMath(f, [100,200,300,500,750], [1,2,4,5,6], 200, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        },
+        'A-2': {
+            label: 'A-2 Assembly (restaurants, pubs, lounges)', calcType: 'area', defaultFactor: 30,
+            mWC: (m) => fracStep(m, [50,150,300,400], [1,2,3,4], 250), mathMWC: (m) => getFracMath(m, [50,150,300,400], [1,2,3,4], 250, 'WC (M)'),
+            fWC: (f) => fracStep(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125), mathFWC: (f) => getFracMath(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125, 'WC (F)'),
+            mUr: (m) => fracStep(m, [200,300,400,600], [1,2,3,4], 300), mathMUr: (m) => getFracMath(m, [200,300,400,600], [1,2,3,4], 300, 'Urinals'),
+            mLav: (m) => fracStep(m, [150,200,400], [1,2,3], 250), mathMLav: (m) => getFracMath(m, [150,200,400], [1,2,3], 250, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [150,200,400], [1,2,4], 200), mathFLav: (f) => getFracMath(f, [150,200,400], [1,2,4], 200, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        },
+        'A-3-Stand': {
+            label: 'A-3 Assembly (standing space / arcade)', calcType: 'area', defaultFactor: 17,
+            mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
+            fWC: (f) => fracStep(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125), mathFWC: (f) => getFracMath(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125, 'WC (F)'),
+            mUr: (m) => fracStep(m, [100,200,400,600], [1,2,3,4], 300), mathMUr: (m) => getFracMath(m, [100,200,400,600], [1,2,3,4], 300, 'Urinals'),
+            mLav: (m) => fracStep(m, [200,400,600,750], [1,2,3,4], 250), mathMLav: (m) => getFracMath(m, [200,400,600,750], [1,2,3,4], 250, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [100,200,300,500,750], [1,2,4,5,6], 200), mathFLav: (f) => getFracMath(f, [100,200,300,500,750], [1,2,4,5,6], 200, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        },
+        'A-3-Exhibit': {
+            label: 'A-3 Assembly (museums, libraries, exhibit)', calcType: 'area', defaultFactor: 30,
+            mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
+            fWC: (f) => fracStep(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125), mathFWC: (f) => getFracMath(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125, 'WC (F)'),
+            mUr: (m) => fracStep(m, [100,200,400,600], [1,2,3,4], 300), mathMUr: (m) => getFracMath(m, [100,200,400,600], [1,2,3,4], 300, 'Urinals'),
+            mLav: (m) => fracStep(m, [200,400,600,750], [1,2,3,4], 250), mathMLav: (m) => getFracMath(m, [200,400,600,750], [1,2,3,4], 250, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [100,200,300,500,750], [1,2,4,5,6], 200), mathFLav: (f) => getFracMath(f, [100,200,300,500,750], [1,2,4,5,6], 200, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        },
+        'A-4': {
+            label: 'A-4 Assembly (indoor activities w/ spectator seating)', calcType: 'seats', defaultFactor: null,
+            mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
+            fWC: (f) => fracStep(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125), mathFWC: (f) => getFracMath(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125, 'WC (F)'),
+            mUr: (m) => fracStep(m, [100,200,400,600], [1,2,3,4], 300), mathMUr: (m) => getFracMath(m, [100,200,400,600], [1,2,3,4], 300, 'Urinals'),
+            mLav: (m) => fracStep(m, [200,400,750], [1,2,3], 250), mathMLav: (m) => getFracMath(m, [200,400,750], [1,2,3], 250, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [100,200,400,750], [1,2,3,4], 200), mathFLav: (f) => getFracMath(f, [100,200,400,750], [1,2,3,4], 200, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        },
+        'A-5': {
+            label: 'A-5 Assembly (outdoor activities or sporting events)', calcType: 'seats', defaultFactor: null,
+            mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
+            fWC: (f) => fracStep(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125), mathFWC: (f) => getFracMath(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125, 'WC (F)'),
+            mUr: (m) => fracStep(m, [100,200,400,600], [1,2,3,4], 300), mathMUr: (m) => getFracMath(m, [100,200,400,600], [1,2,3,4], 300, 'Urinals'),
+            mLav: (m) => fracStep(m, [200,400,750], [1,2,3], 250), mathMLav: (m) => getFracMath(m, [200,400,750], [1,2,3], 250, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [100,200,400,750], [1,2,3,4], 200), mathFLav: (f) => getFracMath(f, [100,200,400,750], [1,2,3,4], 200, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        },
+        'B': {
+            label: 'B Business (office, professional, service)', calcType: 'area', defaultFactor: 150,
+            mWC: (m) => fracStep(m, [50,100,200,400], [1,2,3,4], 500), mathMWC: (m) => getFracMath(m, [50,100,200,400], [1,2,3,4], 500, 'WC (M)'),
+            fWC: (f) => fracStep(f, [15,30,50,100,200,400], [1,2,3,4,8,11], 150), mathFWC: (f) => getFracMath(f, [15,30,50,100,200,400], [1,2,3,4,8,11], 150, 'WC (F)'),
+            mUr: (m) => fracStep(m, [100,200,400,600], [1,2,3,4], 300), mathMUr: (m) => getFracMath(m, [100,200,400,600], [1,2,3,4], 300, 'Urinals'),
+            mLav: (m) => fracStep(m, [75,150,200,300,400], [1,2,3,4,5], 250), mathMLav: (m) => getFracMath(m, [75,150,200,300,400], [1,2,3,4,5], 250, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [50,100,150,200,300,400], [1,2,3,4,5,6], 200), mathFLav: (f) => getFracMath(f, [50,100,150,200,300,400], [1,2,3,4,5,6], 200, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'E': {
+            label: 'E Educational (private or public schools)', calcType: 'area', defaultFactor: 50,
+            mWC: (m) => linear(m, 50), mathMWC: (m) => getLinearMath(m, 50, 'WC (M)'),
+            fWC: (f) => linear(f, 30), mathFWC: (f) => getLinearMath(f, 30, 'WC (F)'),
+            mUr: (m) => linear(m, 100), mathMUr: (m) => getLinearMath(m, 100, 'Urinals'),
+            mLav: (m) => linear(m, 40), mathMLav: (m) => getLinearMath(m, 40, 'Lavatory (M)'),
+            fLav: (f) => linear(f, 40), mathFLav: (f) => getLinearMath(f, 40, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'F': {
+            label: 'F1, F2 Factory or Industrial', calcType: 'area', defaultFactor: 500,
+            mWC: (m) => fracStep(m, [50,75,100], [1,2,3], 40), mathMWC: (m) => getFracMath(m, [50,75,100], [1,2,3], 40, 'WC (M)'),
+            fWC: (f) => fracStep(f, [50,75,100], [1,2,3], 40), mathFWC: (f) => getFracMath(f, [50,75,100], [1,2,3], 40, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => fracStep(m, [50,75,100], [1,2,3], 40), mathMLav: (m) => getFracMath(m, [50,75,100], [1,2,3], 40, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [50,75,100], [1,2,3], 40), mathFLav: (f) => getFracMath(f, [50,75,100], [1,2,3], 40, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        },
+        'I-1': {
+            label: 'I-1 Institutional (substance abuse, assisted living)', calcType: 'area', defaultFactor: 200,
+            mWC: (m) => linear(m, 15), mathMWC: (m) => getLinearMath(m, 15, 'WC (M)'),
+            fWC: (f) => linear(f, 15), mathFWC: (f) => getLinearMath(f, 15, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => linear(m, 15), mathMLav: (m) => getLinearMath(m, 15, 'Lavatory (M)'),
+            fLav: (f) => linear(f, 15), mathFLav: (f) => getLinearMath(f, 15, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'I-2-Rooms': { label: 'I-2 Hospitals and nursing homes (individual/ward rooms)', calcType: 'units', defaultFactor: null },
+        'I-2-Waiting': {
+            label: 'I-2 Hospital Waiting or Visitor Rooms', calcType: 'area', defaultFactor: 15,
+            mWC: (m) => linear(m, 15), mathMWC: (m) => getLinearMath(m, 15, 'WC (M)'),
+            fWC: (f) => linear(f, 15), mathFWC: (f) => getLinearMath(f, 15, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => linear(m, 15), mathMLav: (m) => getLinearMath(m, 15, 'Lavatory (M)'),
+            fLav: (f) => linear(f, 15), mathFLav: (f) => getLinearMath(f, 15, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'I-3-Cells': { label: 'I-3 Prisons, Correctional, juvenile center (Cells/Floors)', calcType: 'units', defaultFactor: null },
+        'I-3-Employee': {
+            label: 'I-3 Prisons, Correctional (Employee Use)', calcType: 'area', defaultFactor: 100,
+            mWC: (m) => fracStep(m, [15,35,55], [1,2,3], 40), mathMWC: (m) => getFracMath(m, [15,35,55], [1,2,3], 40, 'WC (M)'),
+            fWC: (f) => fracStep(f, [15,35,55], [1,2,3], 40), mathFWC: (f) => getFracMath(f, [15,35,55], [1,2,3], 40, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => fracStep(m, [15,35,55], [1,2,3], 40), mathMLav: (m) => getFracMath(m, [15,35,55], [1,2,3], 40, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [15,35,55], [1,2,3], 40), mathFLav: (f) => getFracMath(f, [15,35,55], [1,2,3], 40, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'I-4': {
+            label: 'I-4 Institutional (care for less than 24 hours)', calcType: 'area', defaultFactor: 35,
+            mWC: (m) => linear(m, 40), mathMWC: (m) => getLinearMath(m, 40, 'WC (M)'),
+            fWC: (f) => linear(f, 40), mathFWC: (f) => getLinearMath(f, 40, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => linear(m, 40), mathMLav: (m) => getLinearMath(m, 40, 'Lavatory (M)'),
+            fLav: (f) => linear(f, 40), mathFLav: (f) => getLinearMath(f, 40, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'M': {
+            label: 'M Mercantile (sale of merchandise)', calcType: 'area', defaultFactor: 100,
+            mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
+            fWC: (f) => fracStep(f, [100,200,300,400], [1,2,4,6], 200), mathFWC: (f) => getFracMath(f, [100,200,300,400], [1,2,4,6], 200, 'WC (F)'),
+            mUr: (m) => fracStep(m, [200,400], [0,1], 500), mathMUr: (m) => getFracMath(m, [200,400], [0,1], 500, 'Urinals'),
+            mLav: (m) => fracStep(m, [200,400], [1,2], 500), mathMLav: (m) => getFracMath(m, [200,400], [1,2], 500, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [200,300,400], [1,2,3], 400), mathFLav: (f) => getFracMath(f, [200,300,400], [1,2,3], 400, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        },
+        'R-1': { label: 'R-1 Residential (hotels, motels, bed and breakfast)', calcType: 'units', defaultFactor: null },
+        'R-2-Dorm': {
+            label: 'R-2 Residential - Dormitories', calcType: 'area', defaultFactor: 50,
+            mWC: (m) => linear(m, 10), mathMWC: (m) => getLinearMath(m, 10, 'WC (M)'),
+            fWC: (f) => linear(f, 8), mathFWC: (f) => getLinearMath(f, 8, 'WC (F)'),
+            mUr: (m) => linear(m, 25), mathMUr: (m) => getLinearMath(m, 25, 'Urinals'),
+            mLav: (m) => linear(m, 12), mathMLav: (m) => getLinearMath(m, 12, 'Lavatory (M)'),
+            fLav: (f) => linear(f, 12), mathFLav: (f) => getLinearMath(f, 12, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'R-2-Apt': { label: 'R-2 Residential - Apartment house/unit', calcType: 'units', defaultFactor: null },
+        'R-2-Employee': {
+            label: 'R-2 Residential - Employee Use', calcType: 'area', defaultFactor: 150,
+            mWC: (m) => fracStep(m, [15,35,55], [1,2,3], 40), mathMWC: (m) => getFracMath(m, [15,35,55], [1,2,3], 40, 'WC (M)'),
+            fWC: (f) => fracStep(f, [15,35,55], [1,2,3], 40), mathFWC: (f) => getFracMath(f, [15,35,55], [1,2,3], 40, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => linear(m, 40), mathMLav: (m) => getLinearMath(m, 40, 'Lavatory (M)'),
+            fLav: (f) => linear(f, 40), mathFLav: (f) => getLinearMath(f, 40, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'R-3-Group': {
+            label: 'R-3 Residential (more than 5 but <= 16 occupants)', calcType: 'area', defaultFactor: 200,
+            mWC: (m) => linear(m, 10), mathMWC: (m) => getLinearMath(m, 10, 'WC (M)'),
+            fWC: (f) => linear(f, 8), mathFWC: (f) => getLinearMath(f, 8, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => linear(m, 12), mathMLav: (m) => getLinearMath(m, 12, 'Lavatory (M)'),
+            fLav: (f) => linear(f, 12), mathFLav: (f) => getLinearMath(f, 12, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'R-3-Dwelling': { label: 'R-3 Residential (one and two family dwellings)', calcType: 'units', defaultFactor: null },
+        'R-4': {
+            label: 'R-4 Residential (residential care or assisted living)', calcType: 'area', defaultFactor: 200,
+            mWC: (m) => linear(m, 10), mathMWC: (m) => getLinearMath(m, 10, 'WC (M)'),
+            fWC: (f) => linear(f, 8), mathFWC: (f) => getLinearMath(f, 8, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => linear(m, 12), mathMLav: (m) => getLinearMath(m, 12, 'Lavatory (M)'),
+            fLav: (f) => linear(f, 12), mathFLav: (f) => getLinearMath(f, 12, 'Lavatory (F)'),
+            df: (t) => linear(t, 150), mathDF: (t) => getLinearMath(t, 150, 'Drinking Fountains')
+        },
+        'S': {
+            label: 'S-1, S-2 Storage (goods, warehouse, aircraft hanger)', calcType: 'area', defaultFactor: 4000,
+            mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
+            fWC: (f) => fracStep(f, [100,200,400], [1,2,3], 150), mathFWC: (f) => getFracMath(f, [100,200,400], [1,2,3], 150, 'WC (F)'),
+            mUr: (m) => 0, mathMUr: (m) => '<p>Urinals: 0.00</p>',
+            mLav: (m) => fracStep(m, [200,400,750], [1,2,3], 500), mathMLav: (m) => getFracMath(m, [200,400,750], [1,2,3], 500, 'Lavatory (M)'),
+            fLav: (f) => fracStep(f, [200,400,750], [1,2,3], 500), mathFLav: (f) => getFracMath(f, [200,400,750], [1,2,3], 500, 'Lavatory (F)'),
+            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
+        }
+    };
+
+    const borderColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#f97316', '#14b8a6', '#ec4899'];
+    
+    // Set requested defaults
+    let spaces = [
+        { id: generateId(), name: 'Occupied Space 1', type: 'B', val: 15000, factor: 150 },
+        { id: generateId(), name: 'Occupied Space 2', type: 'A-3-Exhibit', val: 2000, factor: 30 }
+    ];
+    let lastEditedId = null;
+
+    window.exportData = function() {
+        const dataStr = JSON.stringify(spaces, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "Reverse_Plumbing_Calculator_Data.json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    window.importData = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                if (Array.isArray(parsed)) {
+                    spaces = parsed;
+                    spaces.forEach(s => {
+                        if (!s.factor && occupancyData[s.type]?.defaultFactor) s.factor = occupancyData[s.type].defaultFactor;
+                    });
+                    buildSpacesDOM();
+                    window.runEngine();
+                } else {
+                    alert("Invalid format: The file must contain a valid array of spaces.");
+                }
+            } catch (err) {
+                alert("Error reading file. Ensure it is a valid JSON file.");
+            }
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    };
+
+    window.printReport = function() {
+        const details = document.querySelectorAll('details');
+        details.forEach(d => d.setAttribute('open', 'true'));
+        setTimeout(() => { window.print(); }, 100);
+    };
+
+    function getAvailableFixtures() {
+        return {
+            mWC: parseInt(document.getElementById('g-mWC').value)||0,
+            fWC: parseInt(document.getElementById('g-fWC').value)||0,
+            mUr: parseInt(document.getElementById('g-mUr').value)||0,
+            mLav: parseInt(document.getElementById('g-mLav').value)||0,
+            fLav: parseInt(document.getElementById('g-fLav').value)||0,
+            df: parseInt(document.getElementById('g-df').value)||0
+        };
+    }
+
+    function calculateRequirements(testSpaces) {
+        let req = { mWC:0, fWC:0, mUr:0, mLav:0, fLav:0, df:0, uWC:0, uLav:0 };
+        testSpaces.forEach(s => {
+            const logic = occupancyData[s.type];
+            let currentFactor = s.factor || logic.defaultFactor || 1;
+            
+            if (logic.calcType === 'area' || logic.calcType === 'seats') {
+                let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
+                let mOcc = Math.ceil(totalOcc / 2);
+                let fOcc = Math.ceil(totalOcc / 2);
+                
+                req.mWC += logic.mWC(mOcc);
+                req.fWC += logic.fWC(fOcc);
+                req.mUr += logic.mUr(mOcc);
+                req.mLav += logic.mLav(mOcc);
+                req.fLav += logic.fLav(fOcc);
+                req.df += logic.df(totalOcc);
+            } else if (logic.calcType === 'units') {
+                req.uWC += s.val;
+                req.uLav += s.val;
+            }
+        });
+        for(let key in req) req[key] = Math.ceil(req[key]);
+        return req;
+    }
+
+    function getBottlenecks(req, avail) {
+        let issues = [];
+        if(req.mWC > avail.mWC) issues.push(`${req.mWC - avail.mWC} Male WC`);
+        if(req.fWC > avail.fWC) issues.push(`${req.fWC - avail.fWC} Female WC`);
+        if(req.mUr > avail.mUr) issues.push(`${req.mUr - avail.mUr} Urinals`);
+        if(req.mLav > avail.mLav) issues.push(`${req.mLav - avail.mLav} Male Lavs`);
+        if(req.fLav > avail.fLav) issues.push(`${req.fLav - avail.fLav} Female Lavs`);
+        if(req.df > avail.df) issues.push(`${req.df - avail.df} Drinking Fountains`);
+        return issues;
+    }
+
+    function findTheoreticalMax(avail) {
+        let currentTotal = spaces.reduce((sum, s) => sum + s.val, 0);
+        if (currentTotal === 0) return 0;
+        
+        let proportions = spaces.map(s => s.val / currentTotal);
+        let low = 0;
+        let high = 500000; 
+        
+        for(let i=0; i<30; i++) {
+            let mid = (low + high) / 2;
+            let testSpaces = spaces.map((s, idx) => ({ type: s.type, val: mid * proportions[idx], factor: s.factor }));
+            let req = calculateRequirements(testSpaces);
+            if(getBottlenecks(req, avail).length > 0) {
+                high = mid; 
+            } else {
+                low = mid; 
+            }
+        }
+        return Math.floor(low);
+    }
+
+    function createSpaceNode(s, idx) {
+        const sortedKeys = Object.keys(occupancyData).sort((a, b) => occupancyData[a].label.localeCompare(occupancyData[b].label));
+        let options = sortedKeys.map(k => 
+            `<option value="${k}" ${s.type === k ? 'selected' : ''}>${occupancyData[k].label}</option>`
+        ).join('');
+
+        const logic = occupancyData[s.type];
+        let badgeHtml = logic.calcType === 'area' ? '<span class="badge">Area-Based</span>' : 
+                        logic.calcType === 'seats' ? '<span class="badge seats">Fixed Seating</span>' : 
+                        '<span class="badge units">Unit-Based</span>';
+        
+        let labelText = logic.calcType === 'area' ? 'Input Value (SqFt)' : 
+                        logic.calcType === 'seats' ? 'Input Value (Seats)' : 'Input Value (Units/Rooms)';
+
+        let factorDisabled = logic.calcType !== 'area' ? 'disabled title="N/A for this type"' : '';
+        let factorValue = s.factor || logic.defaultFactor || '';
+
+        const card = document.createElement('div');
+        card.id = `card-${s.id}`;
+        card.className = 'space-card';
+        card.style.borderLeft = `5px solid ${borderColors[idx % borderColors.length]}`;
+        
+        card.innerHTML = `
+            <div class="space-header">
+                <div class="space-header-left">
+                    <input type="text" class="space-title-input" value="${s.name}" oninput="window.updateSpace('${s.id}', 'name', this.value)">
+                    <span id="badge-${s.id}">${badgeHtml}</span>
+                </div>
+                ${spaces.length > 1 ? `<button class="btn btn-danger" onclick="window.removeSpace('${s.id}')">Remove</button>` : ''}
+            </div>
+            <div class="controls-grid">
+                <div class="input-group">
+                    <label>Occupancy Type</label>
+                    <select id="select-${s.id}" onchange="window.updateSpace('${s.id}', 'type', this.value)">${options}</select>
+                </div>
+                <div class="input-group factor-group" style="max-width: 70px;">
+                    <label>Factor</label>
+                    <input type="number" id="factor-${s.id}" value="${factorValue}" min="1" oninput="window.updateSpace('${s.id}', 'factor', this.value)" ${factorDisabled}>
+                </div>
+                <div class="slider-group">
+                    <input type="range" id="slider-${s.id}" min="0" max="10000" step="50" value="${s.val}" oninput="window.updateSpace('${s.id}', 'val', this.value)">
+                </div>
+                <div class="input-group">
+                    <label id="label-${s.id}">${labelText}</label>
+                    <input type="number" id="num-${s.id}" value="${s.val}" min="0" oninput="window.updateSpace('${s.id}', 'val', this.value)">
+                </div>
+                <div class="input-group" style="max-width: 65px;">
+                    <label id="pct-label-${s.id}" style="font-weight: 600;">%</label>
+                    <input type="number" id="pct-${s.id}" value="0" min="0" max="100" step="0.1" oninput="window.updateSpace('${s.id}', 'percent', this.value)">
+                </div>
+            </div>
+            <div class="error-message">Exceeds allowed plumbing capacity. Please reduce footprint.</div>
+            <details class="math-breakdown">
+                <summary>View Math Breakdown for Current Value</summary>
+                <div id="math-${s.id}"></div>
+            </details>
+        `;
+        return card;
+    }
+
+    function buildSpacesDOM() {
+        const container = document.getElementById('spaces-container');
+        container.innerHTML = '';
+        spaces.forEach((s, idx) => {
+            container.appendChild(createSpaceNode(s, idx));
+        });
+    }
+
+    window.addSpace = function() {
+        const newSpace = { id: generateId(), name: 'Occupied Space ' + (spaces.length + 1), type: 'B', val: 1000, factor: 150 };
+        spaces.push(newSpace);
+        const container = document.getElementById('spaces-container');
+        container.appendChild(createSpaceNode(newSpace, spaces.length - 1));
+        
+        if (spaces.length === 2) { buildSpacesDOM(); }
+        window.runEngine();
+    };
+    
+    window.removeSpace = function(id) {
+        spaces = spaces.filter(s => s.id !== id);
+        if(lastEditedId === id) lastEditedId = null;
+        
+        const card = document.getElementById(`card-${id}`);
+        if(card) card.remove();
+
+        if (spaces.length === 1) { buildSpacesDOM(); }
+        window.runEngine();
+    };
+
+    window.updateSpace = function(id, field, value) {
+        const space = spaces.find(s => s.id === id);
+        if (!space) return;
+
+        if (field === 'type') {
+            space.type = value;
+            const logic = occupancyData[space.type];
+            space.factor = logic.defaultFactor || null;
+            buildSpacesDOM();
+        } else if (field === 'factor') {
+            space.factor = parseFloat(value) || 1;
+        } else if (field === 'percent') {
+            const newP = Math.max(0, Math.min(100, parseFloat(value) || 0));
+            const total = spaces.reduce((sum, sp) => sum + sp.val, 0);
+            if (total > 0 && spaces.length > 1) {
+                const newVal = Math.round(total * (newP / 100));
+                const remSum = total - newVal;
+                const otherSpaces = spaces.filter(sp => sp.id !== id);
+                const otherSum = otherSpaces.reduce((sum, sp) => sum + sp.val, 0);
+                
+                let allocated = 0;
+                otherSpaces.forEach((sp, index) => {
+                    if (index === otherSpaces.length - 1) {
+                        sp.val = remSum - allocated; 
+                    } else {
+                        let allocatedToSp = otherSum > 0 ? Math.round(remSum * (sp.val / otherSum)) : Math.round(remSum / otherSpaces.length);
+                        sp.val = allocatedToSp;
+                        allocated += allocatedToSp;
+                    }
+                });
+                space.val = newVal;
+                lastEditedId = id;
+                
+                spaces.forEach(sp => {
+                    const slider = document.getElementById(`slider-${sp.id}`);
+                    const num = document.getElementById(`num-${sp.id}`);
+                    if (slider && document.activeElement !== slider) slider.value = sp.val;
+                    if (num && document.activeElement !== num) num.value = sp.val;
+                });
+            }
+        } else if(field === 'val') {
+            space.val = parseInt(value) || 0;
+            lastEditedId = id;
+            
+            const slider = document.getElementById(`slider-${id}`);
+            const num = document.getElementById(`num-${id}`);
+            if (slider && document.activeElement !== slider) slider.value = space.val;
+            if (num && document.activeElement !== num) num.value = space.val;
+        } else {
+            space[field] = value;
+        }
+        window.runEngine();
+    };
+
+    window.runEngine = function() {
+        const avail = getAvailableFixtures();
+        const req = calculateRequirements(spaces);
+        const bottlenecks = getBottlenecks(req, avail);
+        const isOver = bottlenecks.length > 0;
+        const maxLimit = findTheoreticalMax(avail);
+        const currentSum = spaces.reduce((sum, s) => sum + s.val, 0);
+
+        // 1. Dashboard Updates
+        const proposedEl = document.getElementById('res-proposed');
+        const maxEl = document.getElementById('res-max');
+        const warnEl = document.getElementById('bottleneck-warning');
+        const proposedBreakdownList = document.getElementById('proposed-breakdown-list');
+        const maxBreakdownList = document.getElementById('max-breakdown-list');
+        
+        if (proposedEl) proposedEl.innerText = currentSum.toLocaleString();
+        if (maxEl) maxEl.innerText = maxLimit.toLocaleString();
+        
+        if(isOver && warnEl) {
+            warnEl.style.display = 'block';
+            document.getElementById('bottleneck-list').innerText = bottlenecks.join(', ');
+            proposedEl.style.color = 'var(--danger)';
+        } else if (warnEl) {
+            warnEl.style.display = 'none';
+            proposedEl.style.color = 'var(--text-main)';
+        }
+
+        // Proposed Breakdown Update
+        if (proposedBreakdownList) {
+            proposedBreakdownList.innerHTML = '';
+            if (currentSum > 0) {
+                spaces.forEach((s, idx) => {
+                    const color = borderColors[idx % borderColors.length];
+                    const logic = occupancyData[s.type];
+                    let unit = logic.calcType === 'area' ? 'SqFt' : (logic.calcType === 'seats' ? 'Seats' : 'Units');
+                    proposedBreakdownList.innerHTML += `
+                        <div class="dashboard-breakdown-item">
+                            <span><span class="legend-color" style="background:${color}"></span>${s.name}</span>
+                            <span><strong>${s.val.toLocaleString()}</strong> ${unit}</span>
+                        </div>
+                    `;
+                });
+            } else {
+                proposedBreakdownList.innerHTML = '<span style="color: var(--text-muted);">No spaces defined or values are 0.</span>';
+            }
+        }
+
+        // Theoretical Max Breakdown Update
+        if (maxBreakdownList) {
+            maxBreakdownList.innerHTML = '';
+            if (currentSum > 0) {
+                spaces.forEach((s, idx) => {
+                    const proportion = s.val / currentSum;
+                    const spaceMax = Math.floor(maxLimit * proportion);
+                    const color = borderColors[idx % borderColors.length];
+                    
+                    const logic = occupancyData[s.type];
+                    let unit = logic.calcType === 'area' ? 'SqFt' : (logic.calcType === 'seats' ? 'Seats' : 'Units');
+                    
+                    maxBreakdownList.innerHTML += `
+                        <div class="dashboard-breakdown-item">
+                            <span><span class="legend-color" style="background:${color}"></span>${s.name}</span>
+                            <span><strong>${spaceMax.toLocaleString()}</strong> ${unit}</span>
+                        </div>
+                    `;
+                });
+            } else {
+                maxBreakdownList.innerHTML = '<span style="color: var(--text-muted);">No spaces defined or values are 0.</span>';
+            }
+        }
+
+        // 2. Dynamic Space Updates & Math Builders
+        const sliderMax = maxLimit > 0 ? Math.floor(maxLimit * 1.2) : 10000;
+        
+        spaces.forEach(s => {
+            const card = document.getElementById(`card-${s.id}`);
+            if (!card) return;
+            
+            const slider = document.getElementById(`slider-${s.id}`);
+            if (slider) slider.max = sliderMax > s.val ? sliderMax : (s.val * 1.5);
+
+            const pctInput = document.getElementById(`pct-${s.id}`);
+            if (pctInput && document.activeElement !== pctInput) {
+                pctInput.value = currentSum > 0 ? ((s.val / currentSum) * 100).toFixed(1) : 0;
+            }
+
+            const isErrorCard = isOver && s.id === lastEditedId;
+            if (isErrorCard) {
+                card.classList.add('error-state');
+            } else {
+                card.classList.remove('error-state');
+            }
+            
+            const logic = occupancyData[s.type];
+            const mathContainer = document.getElementById(`math-${s.id}`);
+            let currentFactor = s.factor || logic.defaultFactor || 1;
+            
+            if (mathContainer) {
+                if (logic.calcType === 'area' || logic.calcType === 'seats') {
+                    let totalOcc = 0;
+                    let occMathString = '';
+                    
+                    if(logic.calcType === 'area') {
+                        totalOcc = Math.ceil(s.val / currentFactor);
+                        let mOcc = Math.ceil(totalOcc / 2);
+                        let fOcc = Math.ceil(totalOcc / 2);
+                        occMathString = `<p class="highlight-math">Base Load: ${s.val} sq ft ÷ ${currentFactor} factor = ${totalOcc} Occupants ➔ 50/50 Split rounds up to <strong>${mOcc} Male</strong> & <strong>${fOcc} Female</strong></p>`;
+                        mathContainer.innerHTML = occMathString + logic.mathMWC(mOcc) + logic.mathFWC(fOcc) + logic.mathMUr(mOcc) + logic.mathMLav(mOcc) + logic.mathFLav(fOcc) + logic.mathDF(totalOcc);
+                    } else {
+                        totalOcc = s.val;
+                        let mOcc = Math.ceil(totalOcc / 2);
+                        let fOcc = Math.ceil(totalOcc / 2);
+                        occMathString = `<p class="highlight-math">Base Load: ${s.val} Seats = ${totalOcc} Occupants ➔ 50/50 Split rounds up to <strong>${mOcc} Male</strong> & <strong>${fOcc} Female</strong></p>`;
+                        mathContainer.innerHTML = occMathString + logic.mathMWC(mOcc) + logic.mathFWC(fOcc) + logic.mathMUr(mOcc) + logic.mathMLav(mOcc) + logic.mathFLav(fOcc) + logic.mathDF(totalOcc);
+                    }
+                } else if (logic.calcType === 'units') {
+                    mathContainer.innerHTML = `<p class="highlight-math">Unit-Based Computation</p><p>Private/Unisex WC: <strong>${s.val}</strong></p><p>Private/Unisex Lavatory: <strong>${s.val}</strong></p><p><em>Units map 1:1 and are excluded from fractional capacity bottlenecking.</em></p>`;
+                }
+            }
+        });
+
+        // 3. SVG Pie Chart
+        drawSvgPieChart(currentSum);
+    };
+
+    function drawSvgPieChart(total) {
+        const pieContainer = document.getElementById('pie');
+        const legend = document.getElementById('legend');
+        if(!pieContainer || !legend) return;
+        
+        legend.innerHTML = '';
+        pieContainer.innerHTML = '';
+        
+        if (total === 0) {
+            pieContainer.innerHTML = '<svg class="pie-svg" viewBox="0 0 100 100"></svg>';
+            return;
+        }
+
+        let svgContent = '';
+        let startAngle = 0;
+
+        spaces.forEach((s, idx) => {
+            const color = borderColors[idx % borderColors.length];
+            const percent = (s.val / total);
+            const sliceAngle = percent * 2 * Math.PI;
+
+            if (percent > 0) {
+                if (percent === 1) {
+                    svgContent += `<circle cx="50" cy="50" r="50" fill="${color}" />`;
+                } else {
+                    const endAngle = startAngle + sliceAngle;
+
+                    const startX = 50 + 50 * Math.sin(startAngle);
+                    const startY = 50 - 50 * Math.cos(startAngle);
+                    const endX = 50 + 50 * Math.sin(endAngle);
+                    const endY = 50 - 50 * Math.cos(endAngle);
+
+                    const largeArcFlag = percent > 0.5 ? 1 : 0;
+
+                    const pathData = [
+                        `M 50 50`,
+                        `L ${startX} ${startY}`,
+                        `A 50 50 0 ${largeArcFlag} 1 ${endX} ${endY}`,
+                        `Z`
+                    ].join(' ');
+
+                    svgContent += `<path d="${pathData}" fill="${color}" />`;
+                }
+            }
+            startAngle += sliceAngle;
+
+            legend.innerHTML += `
+                <div class="legend-item">
+                    <div><span class="legend-color" style="background:${color}"></span>${s.name}</div>
+                    <div style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 600;">${(percent*100).toFixed(1)}%</div>
+                </div>
+            `;
+        });
+
+        pieContainer.innerHTML = `<svg class="pie-svg" viewBox="0 0 100 100">${svgContent}</svg>`;
+    }
+
+    try {
+        buildSpacesDOM();
+        window.runEngine();
+    } catch (error) {
+        console.error("Critical initialization failure:", error);
+        document.getElementById('spaces-container').innerHTML = `<div class="error-message" style="display:block; padding: 1rem; border: 1px solid var(--danger);"><strong>Error Initializing Tool:</strong> ${error.message}</div>`;
+    }
+</script>
+</body>
+</html>
