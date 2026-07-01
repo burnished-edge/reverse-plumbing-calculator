@@ -868,6 +868,22 @@
     };
 
     window.runEngine = function() {
+        // --- 0. Inject Forward Calculator Styling ---
+        if (!document.getElementById('reverse-math-styles')) {
+            const style = document.createElement('style');
+            style.id = 'reverse-math-styles';
+            style.innerHTML = `
+                .math-breakdown { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border-color); font-size: 0.75rem; color: var(--text-muted); }
+                .math-breakdown summary { cursor: pointer; font-weight: 500; color: var(--accent); outline: none; user-select: none; margin-bottom: 0.5rem; }
+                .math-breakdown .breakdown-wrapper { display: flex; flex-direction: column; gap: 1rem; }
+                .math-breakdown .math-box { line-height: 1.4; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; background: #f1f5f9; padding: 0.75rem; border-radius: 4px; color: var(--text-muted); }
+                .math-breakdown .math-box p { margin: 0 0 0.4rem 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.2rem; }
+                .math-breakdown .math-box p:last-child { margin: 0; border-bottom: none; padding-bottom: 0; }
+                .math-breakdown .highlight-math { color: var(--text-main); font-weight: 600; }
+            `;
+            document.head.appendChild(style);
+        }
+
         const avail = getAvailableFixtures();
         const req = calculateRequirements(spaces);
         const bottlenecks = getBottlenecks(req, avail);
@@ -902,13 +918,12 @@
             }
         });
 
-        // Sort keys alphabetically and assign color palette per Occupancy Group
         const sortedGroups = Object.keys(groupCounts).sort();
         sortedGroups.forEach((key, index) => {
             groupCounts[key].color = borderColors[index % borderColors.length];
         });
 
-        // 2. Dashboard Breakdown Updates (Grouped by Occupancy Type)
+        // 2. Dashboard Breakdown Updates
         const proposedEl = document.getElementById('res-proposed');
         const maxEl = document.getElementById('res-max');
         const warnEl = document.getElementById('bottleneck-warning');
@@ -973,7 +988,6 @@
             const card = document.getElementById(`card-${s.id}`);
             if (!card) return;
 
-            // Paint the card's visual border using its global group color
             let baseGroup = s.type;
             if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
             card.style.borderLeft = `5px solid ${groupCounts[baseGroup].color}`;
@@ -998,30 +1012,33 @@
             if(occEl) occEl.innerText = totalOcc;
         });
 
-        // Generate Unified Collapsible Math Breakdown
+        // 4. Generate Unified Collapsible Math Breakdown (Matching Forward Calculator Styles)
         let globalMathHtml = `
-            <details class="math-breakdown" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 1px 3px rgba(0,0,0,0.05);" open>
-                <summary style="font-weight: 600; font-size: 1.05em; padding-bottom: 5px; cursor: pointer; color: var(--text-main); margin-bottom: 5px;">
-                    View Global Math Breakdown
-                </summary>
-                <div style="font-size: 0.95em; padding-top: 10px; border-top: 1px solid rgba(0,0,0,0.1);">
+            <details class="math-breakdown" open>
+                <summary>View Global Math Breakdown</summary>
+                <div class="breakdown-wrapper">
         `;
 
         sortedGroups.forEach(key => {
             let group = groupCounts[key];
-            const badgeStyle = `background-color: ${group.color}; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; white-space: nowrap; font-family: monospace; border: 1px solid rgba(0,0,0,0.1);`;
+            const badgeStyle = `background-color: ${group.color}; color: #fff; padding: 1px 4px; border-radius: 3px; font-weight: bold; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; border: 1px solid rgba(0,0,0,0.1); display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact;`;
 
-            let gMath = `<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed rgba(0,0,0,0.1);">
-                            <p style="margin-bottom: 4px;"><strong>Group ${key} <span style="font-size:0.9em; font-weight:normal; color:var(--text-muted);">(${group.names.join(', ')})</span></strong></p>`;
+            let gMath = `<div class="breakdown-group">
+                            <h4 style="margin: 0 0 0.5rem 0; color: var(--text-main); font-size: 0.9rem;">
+                                <span class="legend-swatch" style="background-color:${group.color}; width: 12px; height: 12px; border-radius: 2px; display:inline-block; margin-right:4px; vertical-align:middle; border: 1px solid rgba(0,0,0,0.1);"></span>
+                                Group ${key} <span style="font-size:0.85em; font-weight:normal; color:var(--text-muted);">(${group.names.join(', ')})</span>
+                            </h4>
+                            <div class="math-box">`;
 
             if (group.calcType === 'units') {
-                 gMath += `<p>Base Units: ${group.totalOcc}</p><p><em>Units map 1:1 and are excluded from fractional capacity bottlenecking tables.</em></p>`;
+                 gMath += `<p class="highlight-math">Aggregated Units: <strong>${group.totalOcc} Units</strong></p>
+                           <p><em>Units map 1:1 and are excluded from fractional capacity bottlenecking tables.</em></p>`;
             } else {
                  let mOcc = Math.ceil(group.totalOcc / 2);
                  let fOcc = Math.ceil(group.totalOcc / 2);
 
-                 gMath += `<p style="margin-bottom: 4px;">Aggregate Base Load: ${group.occMathStrings.join(' + ')} = <strong>${group.totalOcc} Total Occupants</strong></p>
-                           <p style="margin-bottom: 8px;">50/50 Split ➔ ${mOcc} Male & ${fOcc} Female</p>`;
+                 gMath += `<p class="highlight-math">Aggregated Base Load: ${group.occMathStrings.join(' + ')} = <strong>${group.totalOcc} Total Occupants</strong></p>
+                           <p class="highlight-math" style="margin-top: 0.25rem;">➔ 50/50 Split rounds up to <strong>${mOcc} Male</strong> & <strong>${fOcc} Female</strong></p>`;
 
                  let mathStrings = [
                      group.logic.mathMWC(mOcc), group.logic.mathFWC(fOcc), group.logic.mathMUr(mOcc),
@@ -1032,9 +1049,9 @@
                  groupFracText = groupFracText.replace(/<strong>(\d+\.\d{2})<\/strong>/g, `<span style="${badgeStyle}">$1</span>`);
                  groupFracText = groupFracText.replace(/: 0\.00<\/p>/g, `: <span style="${badgeStyle}">0.00</span></p>`);
 
-                 gMath += `<div style="font-size: 0.9em; color: #555; background: #f8fafc; padding: 10px; border-radius: 6px;">${groupFracText}</div>`;
+                 gMath += `${groupFracText}`;
             }
-            gMath += `</div>`;
+            gMath += `</div></div>`;
             globalMathHtml += gMath;
         });
 
@@ -1059,7 +1076,7 @@
         }
         if(globalMathContainer) globalMathContainer.innerHTML = globalMathHtml;
 
-        // 4. SVG Pie Chart (Passing the globally sorted variables)
+        // 5. SVG Pie Chart 
         drawSvgPieChart(currentSum, groupCounts, sortedGroups);
     };
 
