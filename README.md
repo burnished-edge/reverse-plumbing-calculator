@@ -2,6 +2,8 @@
 
 Welcome to the **LAPC Reverse Fixture Calculator**, a specialized tool designed for tenant improvements and existing buildings. Instead of calculating how many fixtures a new space requires, this calculator reverse-engineers the Los Angeles Plumbing Code (LAPC) and California Plumbing Code (CPC) to tell you the maximum allowable occupant load and floor area your *existing* plumbing fixtures can legally support.
 
+This tool is invaluable for tenant improvements where avoiding costly plumbing construction is a priority; for example, if you are designing a restaurant in an existing commercial space, the calculator instantly reveals the maximum number of seats you can legally propose without having to trench the floor to build additional restrooms.
+
 ## Table of Contents
 * [Features](#features)
   * [Theoretical Max Engine](#theoretical-max-engine)
@@ -21,8 +23,6 @@ Welcome to the **LAPC Reverse Fixture Calculator**, a specialized tool designed 
 The core of the Reverse Calculator is its "Theoretical Max" algorithm. Because the plumbing code uses step-functions and ratios (e.g., 1 Water Closet for 1–50 occupants, 2 for 51–100), having a set number of fixtures means there is a hard upper limit to how many people can occupy the space. 
 * **How it works:** You input your existing fixture counts, and the algorithm calculates the exact "tipping point"—the absolute maximum occupant load you can have *right before* the code mandates adding another fixture. 
 * **Translating to Real Space:** It then automatically multiplies that maximum occupant load by the CPC Table 4-1 load factor to give you the maximum allowable square footage or seat count for your selected occupancy type.
-
-This tool is invaluable for tenant improvements where avoiding costly plumbing construction is a priority; for example, if you are designing a restaurant in an existing commercial space, the calculator instantly reveals the maximum number of seats you can legally propose without having to trench the floor to build additional restrooms.
 
 [SCREENSHOT]
 
