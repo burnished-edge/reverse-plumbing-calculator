@@ -583,26 +583,43 @@
 
     function calculateRequirements(testSpaces) {
         let req = { mWC:0, fWC:0, mUr:0, mLav:0, fLav:0, df:0, uWC:0, uLav:0 };
+        let groupCounts = {};
+
+        // 1. Group Spaces by Root Classification & Sum Occupants
         testSpaces.forEach(s => {
             const logic = occupancyData[s.type];
-            let currentFactor = s.factor || logic.defaultFactor || 1;
             
-            if (logic.calcType === 'area' || logic.calcType === 'seats') {
-                let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
-                let mOcc = Math.ceil(totalOcc / 2);
-                let fOcc = Math.ceil(totalOcc / 2);
-                
-                req.mWC += logic.mWC(mOcc);
-                req.fWC += logic.fWC(fOcc);
-                req.mUr += logic.mUr(mOcc);
-                req.mLav += logic.mLav(mOcc);
-                req.fLav += logic.fLav(fOcc);
-                req.df += logic.df(totalOcc);
-            } else if (logic.calcType === 'units') {
-                req.uWC += s.val;
-                req.uLav += s.val;
+            // Map variations to a singular root type to share the math pool
+            let baseGroup = s.type;
+            if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
+
+            let currentFactor = s.factor || logic.defaultFactor || 1;
+            let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
+
+            if (!groupCounts[baseGroup]) {
+                groupCounts[baseGroup] = { totalOcc: 0, logic: logic, calcType: logic.calcType };
             }
+            groupCounts[baseGroup].totalOcc += totalOcc;
         });
+
+        // 2. Run Fixture Math Strictly on the Global Pools
+        for (let key in groupCounts) {
+            let group = groupCounts[key];
+            if (group.calcType === 'area' || group.calcType === 'seats') {
+                let mOcc = Math.ceil(group.totalOcc / 2);
+                let fOcc = Math.ceil(group.totalOcc / 2);
+                req.mWC += group.logic.mWC(mOcc);
+                req.fWC += group.logic.fWC(fOcc);
+                req.mUr += group.logic.mUr(mOcc);
+                req.mLav += group.logic.mLav(mOcc);
+                req.fLav += group.logic.fLav(fOcc);
+                req.df += group.logic.df(group.totalOcc);
+            } else if (group.calcType === 'units') {
+                req.uWC += group.totalOcc;
+                req.uLav += group.totalOcc;
+            }
+        }
+        
         for(let key in req) req[key] = Math.ceil(req[key]);
         return req;
     }
@@ -691,10 +708,10 @@
                 </div>
             </div>
             <div class="error-message">Exceeds allowed plumbing capacity. Please reduce footprint.</div>
-            <details class="math-breakdown">
-                <summary>View Math Breakdown for Current Value</summary>
-                <div id="math-${s.id}"></div>
-            </details>
+            <div style="margin-top: 15px; font-size: 0.9em; padding: 10px; border-top: 1px solid rgba(0,0,0,0.1); display: flex; justify-content: flex-end; align-items: center;">
+                <span style="margin-right: 10px; font-weight: bold;">Target Occupants:</span>
+                <span id="occ-${s.id}" style="background-color: #e4e4e7; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-family: monospace;">0</span>
+            </div>
         `;
         return card;
     }
@@ -809,7 +826,6 @@
             proposedEl.style.color = 'var(--text-main)';
         }
 
-        // Proposed Breakdown Update
         if (proposedBreakdownList) {
             proposedBreakdownList.innerHTML = '';
             if (currentSum > 0) {
@@ -829,7 +845,6 @@
             }
         }
 
-        // Theoretical Max Breakdown Update
         if (maxBreakdownList) {
             maxBreakdownList.innerHTML = '';
             if (currentSum > 0) {
@@ -837,10 +852,8 @@
                     const proportion = s.val / currentSum;
                     const spaceMax = Math.floor(maxLimit * proportion);
                     const color = borderColors[idx % borderColors.length];
-                    
                     const logic = occupancyData[s.type];
                     let unit = logic.calcType === 'area' ? 'SqFt' : (logic.calcType === 'seats' ? 'Seats' : 'Units');
-                    
                     maxBreakdownList.innerHTML += `
                         <div class="dashboard-breakdown-item">
                             <span><span class="legend-color" style="background:${color}"></span>${s.name}</span>
@@ -853,8 +866,9 @@
             }
         }
 
-        // 2. Dynamic Space Updates & Math Builders
+        // 2. Dynamic Space Updates & Global Math Builder
         const sliderMax = maxLimit > 0 ? Math.floor(maxLimit * 1.2) : 10000;
+        let groupCounts = {};
         
         spaces.forEach(s => {
             const card = document.getElementById(`card-${s.id}`);
@@ -869,39 +883,82 @@
             }
 
             const isErrorCard = isOver && s.id === lastEditedId;
-            if (isErrorCard) {
-                card.classList.add('error-state');
-            } else {
-                card.classList.remove('error-state');
-            }
+            if (isErrorCard) card.classList.add('error-state');
+            else card.classList.remove('error-state');
             
+            // Pool calculations for math breakdown UI
             const logic = occupancyData[s.type];
-            const mathContainer = document.getElementById(`math-${s.id}`);
             let currentFactor = s.factor || logic.defaultFactor || 1;
+            let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
             
-            if (mathContainer) {
-                if (logic.calcType === 'area' || logic.calcType === 'seats') {
-                    let totalOcc = 0;
-                    let occMathString = '';
-                    
-                    if(logic.calcType === 'area') {
-                        totalOcc = Math.ceil(s.val / currentFactor);
-                        let mOcc = Math.ceil(totalOcc / 2);
-                        let fOcc = Math.ceil(totalOcc / 2);
-                        occMathString = `<p class="highlight-math">Base Load: ${s.val} sq ft ÷ ${currentFactor} factor = ${totalOcc} Occupants ➔ 50/50 Split rounds up to <strong>${mOcc} Male</strong> & <strong>${fOcc} Female</strong></p>`;
-                        mathContainer.innerHTML = occMathString + logic.mathMWC(mOcc) + logic.mathFWC(fOcc) + logic.mathMUr(mOcc) + logic.mathMLav(mOcc) + logic.mathFLav(fOcc) + logic.mathDF(totalOcc);
-                    } else {
-                        totalOcc = s.val;
-                        let mOcc = Math.ceil(totalOcc / 2);
-                        let fOcc = Math.ceil(totalOcc / 2);
-                        occMathString = `<p class="highlight-math">Base Load: ${s.val} Seats = ${totalOcc} Occupants ➔ 50/50 Split rounds up to <strong>${mOcc} Male</strong> & <strong>${fOcc} Female</strong></p>`;
-                        mathContainer.innerHTML = occMathString + logic.mathMWC(mOcc) + logic.mathFWC(fOcc) + logic.mathMUr(mOcc) + logic.mathMLav(mOcc) + logic.mathFLav(fOcc) + logic.mathDF(totalOcc);
-                    }
-                } else if (logic.calcType === 'units') {
-                    mathContainer.innerHTML = `<p class="highlight-math">Unit-Based Computation</p><p>Private/Unisex WC: <strong>${s.val}</strong></p><p>Private/Unisex Lavatory: <strong>${s.val}</strong></p><p><em>Units map 1:1 and are excluded from fractional capacity bottlenecking.</em></p>`;
-                }
+            const occEl = document.getElementById(`occ-${s.id}`);
+            if(occEl) occEl.innerText = totalOcc;
+
+            let baseGroup = s.type;
+            if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
+
+            if (!groupCounts[baseGroup]) {
+                groupCounts[baseGroup] = {
+                    totalOcc: 0, logic: logic, calcType: logic.calcType, names: [], occMathStrings: [],
+                    colorIndex: Object.keys(groupCounts).length % borderColors.length
+                };
+            }
+            groupCounts[baseGroup].totalOcc += totalOcc;
+            groupCounts[baseGroup].names.push(s.name);
+
+            if (logic.calcType === 'area') {
+                groupCounts[baseGroup].occMathStrings.push(`${s.val} sqft / ${currentFactor} = ${totalOcc}`);
+            } else if (logic.calcType === 'seats') {
+                groupCounts[baseGroup].occMathStrings.push(`${s.val} seats = ${totalOcc}`);
             }
         });
+
+        // Generate Unified Global Math Breakdown
+        let globalMathHtml = `<h3 style="margin-top:0; border-bottom:1px solid rgba(0,0,0,0.1); padding-bottom:8px;">Proposed Target: Global Math Breakdown</h3>`;
+
+        for (let key in groupCounts) {
+            let group = groupCounts[key];
+            const color = borderColors[group.colorIndex];
+            const badgeStyle = `background-color: ${color}; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; white-space: nowrap; font-family: monospace; border: 1px solid rgba(0,0,0,0.1);`;
+
+            let gMath = `<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed rgba(0,0,0,0.1);">
+                            <p style="margin-bottom: 4px;"><strong>Group ${key} (${group.names.join(', ')})</strong></p>`;
+
+            if (group.calcType === 'units') {
+                 gMath += `<p>Base Units: ${group.totalOcc}</p><p><em>Units map 1:1 and are excluded from fractional capacity bottlenecking tables.</em></p>`;
+            } else {
+                 let mOcc = Math.ceil(group.totalOcc / 2);
+                 let fOcc = Math.ceil(group.totalOcc / 2);
+
+                 gMath += `<p>Aggregate Base Load: ${group.occMathStrings.join(' + ')} = <strong>${group.totalOcc} Total Occupants</strong></p>
+                           <p style="margin-bottom: 8px;">50/50 Split ➔ ${mOcc} Male & ${fOcc} Female</p>`;
+
+                 let mathStrings = [
+                     group.logic.mathMWC(mOcc), group.logic.mathFWC(fOcc), group.logic.mathMUr(mOcc),
+                     group.logic.mathMLav(mOcc), group.logic.mathFLav(fOcc), group.logic.mathDF(group.totalOcc)
+                 ];
+
+                 let groupFracText = mathStrings.join('');
+                 // Regex intercepts trailing decimals inside <strong> and replaces with color pill badge
+                 groupFracText = groupFracText.replace(/<strong>(\d+\.\d{2})<\/strong>/g, `<span style="${badgeStyle}">$1</span>`);
+                 groupFracText = groupFracText.replace(/: 0\.00<\/p>/g, `: <span style="${badgeStyle}">0.00</span></p>`);
+
+                 gMath += `<div style="font-size: 0.9em; color: #555; background: #f8fafc; padding: 10px; border-radius: 6px;">${groupFracText}</div>`;
+            }
+            gMath += `</div>`;
+            globalMathHtml += gMath;
+        }
+
+        // Dynamically inject the Math breakdown wrapper if missing
+        let globalMathContainer = document.getElementById('global-math-breakdown');
+        if (!globalMathContainer) {
+            globalMathContainer = document.createElement('div');
+            globalMathContainer.id = 'global-math-breakdown';
+            globalMathContainer.style.cssText = 'margin-top: 30px; padding: 20px; background: #fff; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 1px 3px rgba(0,0,0,0.05);';
+            const spacesContainer = document.getElementById('spaces-container');
+            if (spacesContainer) spacesContainer.after(globalMathContainer);
+        }
+        if(globalMathContainer) globalMathContainer.innerHTML = globalMathHtml;
 
         // 3. SVG Pie Chart
         drawSvgPieChart(currentSum);
