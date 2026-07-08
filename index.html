@@ -216,6 +216,7 @@
         </div>
         <div class="util-buttons">
             <button class="btn btn-outline" onclick="window.printReport()">Print / Save PDF</button>
+            <button class="btn btn-outline" id="share-btn" onclick="window.generateShareLink()">Copy Link</button>
             <button class="btn btn-outline" onclick="window.exportData()">Export JSON</button>
             <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">Import JSON</button>
             <input type="file" id="import-file" accept=".json" style="display: none;" onchange="window.importData(event)">
@@ -265,6 +266,11 @@
             <details class="dashboard-breakdown top-border" open>
                 <summary>View Distribution Breakdown</summary>
                 <div class="breakdown-content" id="max-breakdown-list"></div>
+            </details>
+
+            <details class="dashboard-breakdown top-border" style="margin-top: 0.75rem;">
+                <summary>View Total Required Math</summary>
+                <div id="proposed-math-breakdown"></div>
             </details>
 
             <hr style="border: 0; border-top: 1px dashed var(--border-color); margin: 1rem 0;">
@@ -519,12 +525,68 @@
 
     const borderColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#f97316', '#14b8a6', '#ec4899'];
     
-    // Set requested defaults
-    let spaces = [
-        { id: generateId(), name: 'Occupied Space 1', type: 'B', val: 15000, factor: 150 },
-        { id: generateId(), name: 'Occupied Space 2', type: 'A-3-Exhibit', val: 2000, factor: 30 }
-    ];
+    // State & Link Generation Logic
+    let spaces = [];
     let lastEditedId = null;
+
+    window.generateShareLink = function() {
+        const state = { fixtures: getAvailableFixtures(), spaces: spaces };
+        const data = JSON.stringify(state);
+        const encoded = btoa(encodeURIComponent(data));
+        window.location.hash = encoded;
+        
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            const btn = document.getElementById('share-btn');
+            const originalText = btn.innerText;
+            btn.innerText = '✓ Copied';
+            btn.style.backgroundColor = 'var(--success)';
+            btn.style.color = 'white';
+            btn.style.borderColor = 'var(--success)';
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style = '';
+            }, 2500);
+        });
+    };
+
+    window.loadStateFromURL = function() {
+        if (window.location.hash && window.location.hash.length > 1) {
+            try {
+                const encoded = window.location.hash.substring(1);
+                const parsed = JSON.parse(decodeURIComponent(atob(encoded)));
+                if (parsed && parsed.spaces && parsed.fixtures) {
+                    spaces = parsed.spaces;
+                    const f = parsed.fixtures;
+                    document.getElementById('g-mWC').value = f.mWC;
+                    document.getElementById('g-fWC').value = f.fWC;
+                    document.getElementById('g-mUr').value = f.mUr;
+                    document.getElementById('g-mLav').value = f.mLav;
+                    document.getElementById('g-fLav').value = f.fLav;
+                    document.getElementById('g-df').value = f.df;
+                    return true;
+                }
+            } catch(e) {
+                console.error("Could not parse shared link data", e);
+            }
+        }
+        return false;
+    };
+
+    window.updateURLHashSilently = function() {
+        const state = { fixtures: getAvailableFixtures(), spaces: spaces };
+        const data = JSON.stringify(state);
+        const encoded = btoa(encodeURIComponent(data));
+        window.history.replaceState(null, null, '#' + encoded);
+    };
+
+    // Initialize state
+    if (!window.loadStateFromURL()) {
+        spaces = [
+            { id: generateId(), name: 'Occupied Space 1', type: 'B', val: 15000, factor: 150 },
+            { id: generateId(), name: 'Occupied Space 2', type: 'A-3-Exhibit', val: 2000, factor: 30 }
+        ];
+    }
 
     window.exportData = function() {
         const dataStr = JSON.stringify(spaces, null, 2);
@@ -1076,6 +1138,60 @@
         }
         if(globalMathContainer) globalMathContainer.innerHTML = globalMathHtml;
 
+        // Build Required Math Breakdown for the Proposed Sum
+        const proposedMathContainer = document.getElementById('proposed-math-breakdown');
+        if (proposedMathContainer) {
+            let gtmWC = 0, gtfWC = 0, gtmUr = 0, gtmLav = 0, gtfLav = 0, gtDF = 0;
+            let sumStrings = { mWC: [], fWC: [], mUr: [], mLav: [], fLav: [], df: [] };
+            
+            spaces.forEach((s, idx) => {
+                const color = borderColors[idx % borderColors.length];
+                const badge = (val) => `<span style="background-color: ${color}; padding: 1px 4px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); font-family: monospace; color: var(--text-main);" title="${s.name}">${val}</span>`;
+                
+                const logic = occupancyData[s.type];
+                let currentFactor = s.factor || logic.defaultFactor || 1;
+                
+                if (logic.calcType === 'area' || logic.calcType === 'seats') {
+                    let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
+                    let mOcc = Math.ceil(totalOcc / 2);
+                    let fOcc = Math.ceil(totalOcc / 2);
+                    
+                    let s_mWC = logic.mWC(mOcc), s_fWC = logic.fWC(fOcc), s_mUr = logic.mUr(mOcc);
+                    let s_mLav = logic.mLav(mOcc), s_fLav = logic.fLav(fOcc), s_df = logic.df(totalOcc);
+                    
+                    gtmWC += s_mWC; gtfWC += s_fWC; gtmUr += s_mUr;
+                    gtmLav += s_mLav; gtfLav += s_fLav; gtDF += s_df;
+                    
+                    if (s_mWC > 0) sumStrings.mWC.push(badge(s_mWC.toFixed(2)));
+                    if (s_fWC > 0) sumStrings.fWC.push(badge(s_fWC.toFixed(2)));
+                    if (s_mUr > 0) sumStrings.mUr.push(badge(s_mUr.toFixed(2)));
+                    if (s_mLav > 0) sumStrings.mLav.push(badge(s_mLav.toFixed(2)));
+                    if (s_fLav > 0) sumStrings.fLav.push(badge(s_fLav.toFixed(2)));
+                    if (s_df > 0) sumStrings.df.push(badge(s_df.toFixed(2)));
+                }
+            });
+
+            if (currentSum > 0) {
+                const makeLine = (title, arr, total) => `<p style="margin: 0 0 0.4rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.2rem;"><strong>${title}:</strong> ${arr.length > 0 ? arr.join(' + ') : '0.00'} = ${total.toFixed(2)} ➔ <strong>${Math.ceil(total)}</strong></p>`;
+                
+                proposedMathContainer.innerHTML = `
+                    <div style="margin-top: 0.5rem; line-height: 1.4; background: #f1f5f9; padding: 0.75rem; border-radius: 4px; font-size: 0.75rem; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;">
+                        ${makeLine('Water Closets (M)', sumStrings.mWC, gtmWC)}
+                        ${makeLine('Water Closets (F)', sumStrings.fWC, gtfWC)}
+                        ${makeLine('Urinals (M)', sumStrings.mUr, gtmUr)}
+                        ${makeLine('Lavatories (M)', sumStrings.mLav, gtmLav)}
+                        ${makeLine('Lavatories (F)', sumStrings.fLav, gtfLav)}
+                        <p style="margin: 0;"><strong>Drinking Fountains:</strong> ${sumStrings.df.length > 0 ? sumStrings.df.join(' + ') : '0.00'} = ${gtDF.toFixed(2)} ➔ <strong>${Math.ceil(gtDF)}</strong></p>
+                    </div>
+                `;
+            } else {
+                proposedMathContainer.innerHTML = '<span style="color: var(--text-muted);">No values to calculate.</span>';
+            }
+        }
+        
+        // Update URL hash silently as user adjusts variables
+        window.updateURLHashSilently();
+        
         // 5. SVG Pie Chart 
         drawSvgPieChart(currentSum, groupCounts, sortedGroups);
     };
