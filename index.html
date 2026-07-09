@@ -1118,7 +1118,7 @@
         
         spaces.forEach((s, idx) => {
             const color = borderColors[idx % borderColors.length];
-            const badge = (val) => `<span style="background-color: ${color}; padding: 1px 4px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); font-family: monospace; color: var(--text-main);" title="${s.name}">${val}</span>`;
+            const badge = (val) => `<span style="background-color: ${color}; color: #fff; padding: 1px 4px; border-radius: 3px; font-weight: bold; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; border: 1px solid rgba(0,0,0,0.1); display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact;" title="${s.name}">${val}</span>`;
             
             const logic = occupancyData[s.type];
             let currentFactor = s.factor || logic.defaultFactor || 1;
