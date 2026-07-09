@@ -268,11 +268,6 @@
                 <div class="breakdown-content" id="max-breakdown-list"></div>
             </details>
 
-            <details class="dashboard-breakdown top-border" style="margin-top: 0.75rem;">
-                <summary>View Total Required Math</summary>
-                <div id="proposed-math-breakdown"></div>
-            </details>
-
             <hr style="border: 0; border-top: 1px dashed var(--border-color); margin: 1rem 0;">
             <div id="bottleneck-warning" style="color: var(--danger); font-size: 0.85rem; font-weight: 600; display: none; padding: 0.5rem; background: var(--danger-bg); border-radius: 4px; border: 1px solid #fca5a5;">
                 ⚠️ Capacity Exceeded. Deficiency: <span id="bottleneck-list"></span>
@@ -1117,6 +1112,56 @@
             globalMathHtml += gMath;
         });
 
+        // --- INJECT TOTAL REQUIRED MATH INTO THE GLOBAL BREAKDOWN ---
+        let gtmWC = 0, gtfWC = 0, gtmUr = 0, gtmLav = 0, gtfLav = 0, gtDF = 0;
+        let sumStrings = { mWC: [], fWC: [], mUr: [], mLav: [], fLav: [], df: [] };
+        
+        spaces.forEach((s, idx) => {
+            const color = borderColors[idx % borderColors.length];
+            const badge = (val) => `<span style="background-color: ${color}; padding: 1px 4px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); font-family: monospace; color: var(--text-main);" title="${s.name}">${val}</span>`;
+            
+            const logic = occupancyData[s.type];
+            let currentFactor = s.factor || logic.defaultFactor || 1;
+            
+            if (logic.calcType === 'area' || logic.calcType === 'seats') {
+                let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
+                let mOcc = Math.ceil(totalOcc / 2);
+                let fOcc = Math.ceil(totalOcc / 2);
+                
+                let s_mWC = logic.mWC(mOcc), s_fWC = logic.fWC(fOcc), s_mUr = logic.mUr(mOcc);
+                let s_mLav = logic.mLav(mOcc), s_fLav = logic.fLav(fOcc), s_df = logic.df(totalOcc);
+                
+                gtmWC += s_mWC; gtfWC += s_fWC; gtmUr += s_mUr;
+                gtmLav += s_mLav; gtfLav += s_fLav; gtDF += s_df;
+                
+                if (s_mWC > 0) sumStrings.mWC.push(badge(s_mWC.toFixed(2)));
+                if (s_fWC > 0) sumStrings.fWC.push(badge(s_fWC.toFixed(2)));
+                if (s_mUr > 0) sumStrings.mUr.push(badge(s_mUr.toFixed(2)));
+                if (s_mLav > 0) sumStrings.mLav.push(badge(s_mLav.toFixed(2)));
+                if (s_fLav > 0) sumStrings.fLav.push(badge(s_fLav.toFixed(2)));
+                if (s_df > 0) sumStrings.df.push(badge(s_df.toFixed(2)));
+            }
+        });
+
+        if (currentSum > 0) {
+            const makeLine = (title, arr, total) => `<p style="margin: 0 0 0.4rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.2rem;"><strong>${title}:</strong> ${arr.length > 0 ? arr.join(' + ') : '0.00'} = ${total.toFixed(2)} ➔ <strong>${Math.ceil(total)}</strong></p>`;
+            
+            globalMathHtml += `
+                <div class="breakdown-group" style="margin-top: 1rem; border-top: 1px dashed var(--border-color); padding-top: 1rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-main); font-size: 0.9rem;">Total Required Math Summation</h4>
+                    <div class="math-box">
+                        ${makeLine('Water Closets (M)', sumStrings.mWC, gtmWC)}
+                        ${makeLine('Water Closets (F)', sumStrings.fWC, gtfWC)}
+                        ${makeLine('Urinals (M)', sumStrings.mUr, gtmUr)}
+                        ${makeLine('Lavatories (M)', sumStrings.mLav, gtmLav)}
+                        ${makeLine('Lavatories (F)', sumStrings.fLav, gtfLav)}
+                        <p style="margin: 0;"><strong>Drinking Fountains:</strong> ${sumStrings.df.length > 0 ? sumStrings.df.join(' + ') : '0.00'} = ${gtDF.toFixed(2)} ➔ <strong>${Math.ceil(gtDF)}</strong></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Close the details tag *after* everything is injected
         globalMathHtml += `</div></details>`;
 
         // Autolocate and inject safely beneath the "Add Space" button
@@ -1137,57 +1182,6 @@
             }
         }
         if(globalMathContainer) globalMathContainer.innerHTML = globalMathHtml;
-
-        // Build Required Math Breakdown for the Proposed Sum
-        const proposedMathContainer = document.getElementById('proposed-math-breakdown');
-        if (proposedMathContainer) {
-            let gtmWC = 0, gtfWC = 0, gtmUr = 0, gtmLav = 0, gtfLav = 0, gtDF = 0;
-            let sumStrings = { mWC: [], fWC: [], mUr: [], mLav: [], fLav: [], df: [] };
-            
-            spaces.forEach((s, idx) => {
-                const color = borderColors[idx % borderColors.length];
-                const badge = (val) => `<span style="background-color: ${color}; padding: 1px 4px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); font-family: monospace; color: var(--text-main);" title="${s.name}">${val}</span>`;
-                
-                const logic = occupancyData[s.type];
-                let currentFactor = s.factor || logic.defaultFactor || 1;
-                
-                if (logic.calcType === 'area' || logic.calcType === 'seats') {
-                    let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
-                    let mOcc = Math.ceil(totalOcc / 2);
-                    let fOcc = Math.ceil(totalOcc / 2);
-                    
-                    let s_mWC = logic.mWC(mOcc), s_fWC = logic.fWC(fOcc), s_mUr = logic.mUr(mOcc);
-                    let s_mLav = logic.mLav(mOcc), s_fLav = logic.fLav(fOcc), s_df = logic.df(totalOcc);
-                    
-                    gtmWC += s_mWC; gtfWC += s_fWC; gtmUr += s_mUr;
-                    gtmLav += s_mLav; gtfLav += s_fLav; gtDF += s_df;
-                    
-                    if (s_mWC > 0) sumStrings.mWC.push(badge(s_mWC.toFixed(2)));
-                    if (s_fWC > 0) sumStrings.fWC.push(badge(s_fWC.toFixed(2)));
-                    if (s_mUr > 0) sumStrings.mUr.push(badge(s_mUr.toFixed(2)));
-                    if (s_mLav > 0) sumStrings.mLav.push(badge(s_mLav.toFixed(2)));
-                    if (s_fLav > 0) sumStrings.fLav.push(badge(s_fLav.toFixed(2)));
-                    if (s_df > 0) sumStrings.df.push(badge(s_df.toFixed(2)));
-                }
-            });
-
-            if (currentSum > 0) {
-                const makeLine = (title, arr, total) => `<p style="margin: 0 0 0.4rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.2rem;"><strong>${title}:</strong> ${arr.length > 0 ? arr.join(' + ') : '0.00'} = ${total.toFixed(2)} ➔ <strong>${Math.ceil(total)}</strong></p>`;
-                
-                proposedMathContainer.innerHTML = `
-                    <div style="margin-top: 0.5rem; line-height: 1.4; background: #f1f5f9; padding: 0.75rem; border-radius: 4px; font-size: 0.75rem; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;">
-                        ${makeLine('Water Closets (M)', sumStrings.mWC, gtmWC)}
-                        ${makeLine('Water Closets (F)', sumStrings.fWC, gtfWC)}
-                        ${makeLine('Urinals (M)', sumStrings.mUr, gtmUr)}
-                        ${makeLine('Lavatories (M)', sumStrings.mLav, gtmLav)}
-                        ${makeLine('Lavatories (F)', sumStrings.fLav, gtfLav)}
-                        <p style="margin: 0;"><strong>Drinking Fountains:</strong> ${sumStrings.df.length > 0 ? sumStrings.df.join(' + ') : '0.00'} = ${gtDF.toFixed(2)} ➔ <strong>${Math.ceil(gtDF)}</strong></p>
-                    </div>
-                `;
-            } else {
-                proposedMathContainer.innerHTML = '<span style="color: var(--text-muted);">No values to calculate.</span>';
-            }
-        }
         
         // Update URL hash silently as user adjusts variables
         window.updateURLHashSilently();
