@@ -812,7 +812,11 @@
                 </div>
                 ${spaces.length > 1 ? `<button class="btn btn-danger" onclick="window.removeSpace('${s.id}')">Remove</button>` : ''}
             </div>
-            <div class="controls-grid">
+            <div class="control<div class="controls-grid" 
+                 onmouseenter="this.closest('.space-card').setAttribute('draggable', false)" 
+                 onmouseleave="this.closest('.space-card').setAttribute('draggable', true)"
+                 ontouchstart="this.closest('.space-card').setAttribute('draggable', false)"
+                 ontouchend="this.closest('.space-card').setAttribute('draggable', true)">s-grid">
                 <div class="input-group">
                     <label>Occupancy Type</label>
                     <select id="select-${s.id}" onchange="window.updateSpace('${s.id}', 'type', this.value)">${options}</select>
