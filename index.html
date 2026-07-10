@@ -358,15 +358,6 @@
             fLav: (f) => fracStep(f, [150,200,400], [1,2,4], 200), mathFLav: (f) => getFracMath(f, [150,200,400], [1,2,4], 200, 'Lavatory (F)'),
             df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
         },
-        'A-3-Stand': {
-            label: 'A-3 Assembly (standing space / arcade)', calcType: 'area', defaultFactor: 17,
-            mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
-            fWC: (f) => fracStep(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125), mathFWC: (f) => getFracMath(f, [25,50,100,200,300,400], [1,2,3,4,6,8], 125, 'WC (F)'),
-            mUr: (m) => fracStep(m, [100,200,400,600], [1,2,3,4], 300), mathMUr: (m) => getFracMath(m, [100,200,400,600], [1,2,3,4], 300, 'Urinals'),
-            mLav: (m) => fracStep(m, [200,400,600,750], [1,2,3,4], 250), mathMLav: (m) => getFracMath(m, [200,400,600,750], [1,2,3,4], 250, 'Lavatory (M)'),
-            fLav: (f) => fracStep(f, [100,200,300,500,750], [1,2,4,5,6], 200), mathFLav: (f) => getFracMath(f, [100,200,300,500,750], [1,2,4,5,6], 200, 'Lavatory (F)'),
-            df: (t) => fracStep(t, [250,500,750], [1,2,3], 500), mathDF: (t) => getFracMath(t, [250,500,750], [1,2,3], 500, 'Drinking Fountains')
-        },
         'A-3-Exhibit': {
             label: 'A-3 Assembly (museums, libraries, exhibit)', calcType: 'area', defaultFactor: 30,
             mWC: (m) => fracStep(m, [100,200,400], [1,2,3], 500), mathMWC: (m) => getFracMath(m, [100,200,400], [1,2,3], 500, 'WC (M)'),
@@ -648,7 +639,7 @@
             
             // Map variations to a singular root type to share the math pool
             let baseGroup = s.type;
-            if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
+            if (baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
 
             let currentFactor = s.factor || logic.defaultFactor || 1;
             let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
@@ -953,7 +944,7 @@
         spaces.forEach(s => {
             const logic = occupancyData[s.type];
             let baseGroup = s.type;
-            if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
+            if (baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
 
             let currentFactor = s.factor || logic.defaultFactor || 1;
             let totalOcc = logic.calcType === 'area' ? Math.ceil(s.val / currentFactor) : s.val;
@@ -1046,7 +1037,7 @@
             if (!card) return;
 
             let baseGroup = s.type;
-            if (baseGroup === 'A-3-Stand' || baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
+            if (baseGroup === 'A-3-Exhibit') baseGroup = 'A-3';
             card.style.borderLeft = `5px solid ${groupCounts[baseGroup].color}`;
 
             const slider = document.getElementById(`slider-${s.id}`);
