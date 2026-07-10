@@ -811,14 +811,10 @@
                     <span id="badge-${s.id}">${badgeHtml}</span>
                 </div>
                 ${spaces.length > 1 ? `<button class="btn btn-danger" onclick="window.removeSpace('${s.id}')">Remove</button>` : ''}
-            </div>
-            <div class="controls-grid" 
-                 onmouseenter="this.closest('.space-card').setAttribute('draggable', false)" 
-                 onmouseleave="this.closest('.space-card').setAttribute('draggable', true)"
-                 ontouchstart="this.closest('.space-card').setAttribute('draggable', false)"
-                 ontouchend="this.closest('.space-card').setAttribute('draggable', true)">
-                <div class="input-group">
-                    <label>Occupancy Type</label>
+        </div>
+        <div class="controls-grid" onmouseover="this.parentElement.draggable=false;" onmouseout="this.parentElement.draggable=true;" ontouchstart="this.parentElement.draggable=false;" ontouchend="this.parentElement.draggable=true;">
+            <div class="input-group">
+                <label>Occupancy Type</label>
                     <select id="select-${s.id}" onchange="window.updateSpace('${s.id}', 'type', this.value)">${options}</select>
                 </div>
                 <div class="input-group factor-group" style="max-width: 70px;">
